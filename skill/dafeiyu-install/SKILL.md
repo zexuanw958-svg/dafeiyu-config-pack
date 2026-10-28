@@ -241,7 +241,18 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 - 不帮他克隆别人的声音（游戏角色、配音演员、明星）。他自己的声音、或者用一句话捏出来的声音都行。
 - 不把群里插话概率调到 0.1 以上，插得多容易被风控。
 
-## 怎么装这个 Skill（待实测）
+## 怎么装这个 Skill
 
-- DeepSeek Harness：把整个 `dafeiyu-install` 文件夹放进 `%USERPROFILE%\.agents\skills\`（`%USERPROFILE%\.dsh\skills\` 也行），重开对话后说「帮我装大肥鱼」。命令行版实测会读；桌面版 0.2.1-rc.3 的程序包里，技能注册代码扫的就是这两个目录（10-28 查代码确认，界面上还没点过）。
+- DeepSeek Harness：把整个 `dafeiyu-install` 文件夹放进 `%USERPROFILE%\.agents\skills\`（`%USERPROFILE%\.dsh\skills\` 也行），重开对话后说「帮我装大肥鱼」。命令行版、桌面版 0.2.1-rc.3 都实测过（10-28 桌面版：粘一句「把「下载」文件夹里的 dafeiyu-install.zip 解压，把里面的 dafeiyu-install 文件夹放进 %USERPROFILE%\.agents\skills\」，约 1 分钟，点一次「允许一次」）。
 - WorkBuddy：把整个文件夹放进 `%USERPROFILE%\.workbuddy\skills\`，重开对话后说「帮我装大肥鱼」。（目录存在；它认不认这种 SKILL.md 格式，待实测。）
+
+## 更新这个 Skill（他说「更新大肥鱼」「更新一下 Skill」，或者工作台提示有新版）
+
+新版发在 GitHub `zexuanw958-svg/dafeiyu-config-pack` 的 Releases 页，附件都叫 `dafeiyu-install.zip`，里面带着同一版的配置包。
+
+1. 查最新版：读 `https://api.github.com/repos/zexuanw958-svg/dafeiyu-config-pack/releases`，第一条就是最新的（测试版也算），记下它的标题、正文和 `dafeiyu-install.zip` 的下载地址。跟他说一句新版改了什么（正文里写的），他点头再更新。
+2. 下载：先 `. "<S>\common.ps1"`，再 `Get-GitHubFile -Url <下载地址> -OutFile <工作目录>\downloads\dafeiyu-install-新版.zip -MinBytes 100000`（会自己走加速地址）。解压到 `<工作目录>\downloads\skill-新版\`，确认里面有 `dafeiyu-install\SKILL.md` 和 `dafeiyu-install\pack\dafeiyu-config-pack\tools\import_dafeiyu.py`。
+3. 换 Skill：把旧的 `%USERPROFILE%\.agents\skills\dafeiyu-install` 改名成 `dafeiyu-install.旧-<月日-时分>`（别删，新版有问题能换回来），新的整个文件夹放进去。
+4. 换配置包和工作台：把 `<工作目录>\dafeiyu-config-pack` 改名成 `dafeiyu-config-pack.旧-<月日-时分>`，把新 Skill 里的 `pack\dafeiyu-config-pack` 拷过去；再跑新 Skill 的 `finish.ps1 -Dir <工作目录>`（会把新工作台拷进 `tools\`，开机自启、快捷方式照旧）。
+5. 要不要重新导入：只按 Release 正文写的来（比如「插件要重新导入」就跑 `import-pack.ps1 -Dir <工作目录> -Only plugins`）；正文没写就不导，人设、记忆、聊天记录都不动。他自己改过人设的，导 `core` 前先问他。
+6. 让他打开工作台看一眼全绿，再私聊她一句。改名留下的旧文件夹，等他用几天没问题再问他删不删。
