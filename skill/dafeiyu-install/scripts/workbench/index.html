@@ -992,7 +992,7 @@ let pollT, fails=0, restartAt=0;
 /* 更新完工作台自己重开：等新的小服务应答（pid 变了）就刷新页面，换上新版界面 */
 async function waitRestart(){
   restartAt=Date.now(); let pid0=null; try{ pid0=(await api('/api/ping')).pid; }catch(e){}
-  const tick=async()=>{ try{ const r=await api('/api/ping'); if(pid0===null||r.pid!==pid0){ location.reload(); return; } }catch(e){}
+  const tick=async()=>{ try{ const r=await api('/api/ping'); if(pid0===null||r.pid!==pid0){ try{ await api('/api/status'); }catch(e){} location.reload(); return; } }catch(e){}  /* 新服务头一次查状态要等它看一遍进程，查完再刷新，免得刷新后干等 */
     if(Date.now()-restartAt<45000) setTimeout(tick,1500); else { restartAt=0; poll(); } };
   setTimeout(tick,3000);
 }
