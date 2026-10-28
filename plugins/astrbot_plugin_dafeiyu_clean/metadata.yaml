@@ -1,8 +1,8 @@
 name: astrbot_plugin_dafeiyu_clean
 display_name: 大肥鱼回复防串台
-desc: 发出去之前把模型偶尔漏出来的内部标签（system_reminder、DeepSeek 的 DSML 工具调用标记）删掉，聊天记录里也一起清掉
+desc: 发出去之前把模型偶尔漏出来的内部标签（system_reminder、DeepSeek 的 DSML 工具调用标记）删掉，聊天记录里也一起清掉；开了语音时告诉她自己会发语音，哪条回复念成了语音也告诉她
 help: 装上就行，不用设置
-version: v0.1.0
+version: v0.2.0
 author: zexuan604
 support_platforms:
   - aiocqhttp

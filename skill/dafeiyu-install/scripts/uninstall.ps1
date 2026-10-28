@@ -56,13 +56,22 @@ if ($envHit) { Say "环境变量 OLLAMA_MODELS（指向 $envModels）" }
 if ($ollamaOurs) { Say 'Ollama（装在工作目录里的，用它自己的卸载程序卸）' }
 elseif ($ollamaOther) { Say "Ollama 装在默认位置（$(Split-Path $ollamaOther)，可能是他自己装的、别的程序也在用），不卸$(if ($RemoveOllamaModel) { '，只删 bge-m3 模型' } else { '；我们下的 bge-m3 模型约 1.1 GB，不要了加 -RemoveOllamaModel' })" }
 if ($keep.Count) { Say "工作目录里这些不是我们装的，留着不动：$($keep -join '、')" }
+$petOn = Test-Path "$Dir\private\pet-key.txt"
+if ($petOn) { Say '桌宠：DSH 里登记的「大肥鱼（QQ 同款）」和 dsh-pet 的名字、人设改回原样，桌宠的 key 作废（DSH 和 dsh-pet 本身不卸）' }
 Say '不动的：桌面 QQ（正常软件，不想要了去「设置 → 应用」里卸）、AI 帮手本身'
 if (-not $Yes) {
     Say '只列了清单，什么都没删。他看过、回「确认」后加 -Yes 再跑；想留个备份（人格、记忆、key）就再加 -Backup'
     exit 0
 }
 
-# 4. 停工作目录里的程序（AstrBot、协议端、Breeze、Ollama、工作台）。SnowLuma 挂在桌面 QQ 上的那部分要他退出 QQ 才放得开
+# 3.5 配过桌宠的：先把 DSH 那边的设置改回去、作废桌宠的 key（这时 AstrBot 还开着）。不改回去的话桌宠会一直去找已经没了的桥
+if ($petOn) {
+    $sp = @("$PSScriptRoot\setup-pet.ps1", "$Dir\tools\setup-pet.ps1") | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($sp) { Say '先把桌宠改回原来的样子'; & powershell -NoProfile -ExecutionPolicy Bypass -File $sp -Dir $Dir -Remove 2>&1 | ForEach-Object { Say "  $_" } }
+    else { Say '没找到 setup-pet.ps1：桌宠那边的设置要照 references/桌宠.md「拆掉」那节手动改回去' }
+}
+
+# 4. 停工作目录里的程序（AstrBot、协议端、Breeze、Ollama、工作台、桌宠桥）。SnowLuma 挂在桌面 QQ 上的那部分要他退出 QQ 才放得开
 Say '先停掉工作目录里在跑的程序'
 Stop-UnderDir $Dir
 # 启动器装的 AstrBot，工作台小服务用的 Python 不在工作目录里，按命令行再停一下

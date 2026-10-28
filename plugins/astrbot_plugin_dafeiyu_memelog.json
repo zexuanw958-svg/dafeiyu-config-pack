@@ -1,0 +1,5 @@
+{
+  "name": "astrbot_plugin_dafeiyu_memelog",
+  "what": "没真发出去的表情包不留在聊天记录里，她不会说起自己没发过的图",
+  "always_reinstall": true
+}

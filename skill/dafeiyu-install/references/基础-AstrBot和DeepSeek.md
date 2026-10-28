@@ -96,7 +96,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\install-astrbot.ps1" -D
 
 ## 已经用启动器装过（Vol.04 视频的装法）
 
-体检里 AstrBot 实例是 `launcher` 的，就不另装命令行版，在他的实例上接着做：
+体检里 AstrBot 实例是 `launcher` 的，就不另装命令行版，在他的实例上接着做。它的默认人格不是大肥鱼的（体检 `origin` 是 `own` 或 `stock`），先照 SKILL.md 第 1 步 B 问他整个变成大肥鱼、只拿几样还是另装一套，别直接跑 core；选「只拿几样」的，下面只做建工作目录、写 `backend.txt` 这一条，`deepseek`、`bot`、`whitelist` 都不跑：
 
 - 实例在 `<启动器数据目录>\instances\<uuid>\`，数据目录默认 `%USERPROFILE%\.astrbot_launcher`，改过的话记在 `%APPDATA%\com.github.raven95676.astrbot-launcher\.data-dir.json`。配置是 `core\data\cmd_config.json`。
 - 后台端口不一定是 6185，启动器会另给（见过 18607、21233）：看实例目录下的 python 进程在听哪个端口。没在跑就让他在启动器里点启动。
@@ -104,3 +104,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\install-astrbot.ps1" -D
 - 然后 `deepseek`、`bot`、`whitelist` 照常跑（`<py>` 换成实例的 `venv\Scripts\python.exe`，脚本本身只用标准库）。
 - 后台只听本机：让他在启动器里停实例，你把 `cmd_config.json` 的 `dashboard.host` 改成 `127.0.0.1`（`astr_setup.py dashboard-local` 只认工作目录里的 AstrBot，启动器版手动改），再启动。
 - 部署时报 403、Python 组件下不动：飞书 11.3 的解法（开关「中国大陆一键加速」、清空虚拟环境、重试）。都不行就跟他商量改走命令行版，旧实例只停不删。
+- 开机自启：启动器装的大脑不归 `finish.ps1` 管，要他自己在启动器最左边「高级」→「通用」里打开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」，「关闭窗口时」保持「最小化到系统托盘」（启动器一退出，实例跟着停）。第 8 步 `finish.ps1` 会查、会打出这段，细节在 `收尾-自启和掉线.md`。10-28 群友那台就是漏了这步，重启后她不回来。

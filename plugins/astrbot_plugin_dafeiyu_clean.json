@@ -1,5 +1,5 @@
 {
   "name": "astrbot_plugin_dafeiyu_clean",
-  "what": "发出去前删掉模型偶尔漏出的内部标签",
+  "what": "发出去前删掉模型偶尔漏出的内部标签；开了语音时让她知道自己会发语音、哪条回复是念成语音发出去的",
   "always_reinstall": true
 }

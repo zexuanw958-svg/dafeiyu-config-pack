@@ -7,13 +7,22 @@ $ErrorActionPreference = 'Continue'
 $startup = [Environment]::GetFolderPath('Startup')
 $desktop = [Environment]::GetFolderPath('Desktop')   # 桌面不一定在 C:\Users\<名>\Desktop
 $ws = New-Object -ComObject WScript.Shell
-function New-Lnk([string]$Path, [string]$Target, [string]$WorkDir, [int]$Style, [string]$Desc) {
-    $l = $ws.CreateShortcut($Path); $l.TargetPath = $Target; $l.WorkingDirectory = $WorkDir; $l.WindowStyle = $Style; $l.Description = $Desc; $l.Save()
+function New-Lnk([string]$Path, [string]$Target, [string]$WorkDir, [int]$Style, [string]$Desc, [string]$Arguments = '') {
+    $l = $ws.CreateShortcut($Path); $l.TargetPath = $Target; $l.Arguments = $Arguments; $l.WorkingDirectory = $WorkDir; $l.WindowStyle = $Style; $l.Description = $Desc; $l.Save()
 }
 
 # 1 开机自启（WindowStyle 7 = 最小化）
 if (Test-Path "$Dir\start-astrbot.cmd") { New-Lnk "$startup\大肥鱼-AstrBot.lnk" "$Dir\start-astrbot.cmd" $Dir 7 '大肥鱼的大脑，别关'; Say '开机自启：AstrBot' }
-else { Say '没找到 start-astrbot.cmd（启动器装的 AstrBot 在启动器设置里开「开机自启」）' }
+elseif ((Find-AstrDataDir $Dir) -match '\\core\\data$') {
+    # 启动器装的：开机自启是启动器自己的设置（存在它自己的数据库里），我们不替他改，也不另加一份自启（两份会抢着开同一个实例）
+    if (Get-LauncherAutostart) { Say '开机自启：AstrBot 启动器已经开了「开机自启动」。再确认启动器里「退出时保留实例运行状态」也开着，实例才会跟着起来' }
+    else {
+        Say '开机自启：AstrBot 是启动器装的，要他自己在启动器里点（告诉他在哪，这一步没做完就不算装好）：'
+        Say '  打开 AstrBot 启动器，点最左边的「高级」，在「通用」那一栏打开三个开关：开机自启动、自启动后最小化到托盘、退出时保留实例运行状态'
+        Say '  同一栏的「关闭窗口时」保持「最小化到系统托盘」：启动器一退出，大脑也跟着停（托盘图标别点退出）'
+        Say '  实例保持运行，重启一次电脑，看她自己上线就对了（工作台「开机自启」那一项会显示这次开机她几点起来的）'
+    }
+} else { Say '没找到 start-astrbot.cmd，也没认出启动器的实例：AstrBot 的开机自启按他原来的装法自己设' }
 # 协议端只自启现在用的那一个（两个都开会抢同一个小号，互相挤下线）
 $proto = if (Test-Path "$Dir\private\protocol.txt") { "$(Get-Content -Raw "$Dir\private\protocol.txt")".Trim() } elseif ((Test-Path "$Dir\start-snowluma.cmd") -and -not (Test-Path "$Dir\start-napcat.cmd")) { 'snowluma' } else { 'napcat' }
 if ($proto -eq 'napcat' -and (Test-Path "$Dir\start-napcat.cmd")) {
@@ -26,9 +35,17 @@ if ($proto -eq 'snowluma' -and (Test-Path "$Dir\start-snowluma.cmd")) {
     New-Lnk "$startup\大肥鱼-SnowLuma.lnk" "$Dir\start-snowluma.cmd" $Dir 7 '帮大肥鱼登 QQ（挂在桌面 QQ 上），别关'
     Say '开机自启：SnowLuma。桌面 QQ 也要开机自动登小号：请他在 QQ 登录窗口勾「自动登录」，QQ 设置里打开「开机自动启动」（让他自己点，告诉他在哪）'
 }
-$ollamaApp = @("$env:LOCALAPPDATA\Programs\Ollama\ollama app.exe", "$Dir\Ollama\ollama app.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-if ($ollamaApp) { New-Lnk "$startup\Ollama.lnk" $ollamaApp (Split-Path $ollamaApp) 7 '大肥鱼的记忆'; Say '开机自启：Ollama（记忆；它的安装包不会自己加）' }
+# Ollama 开机只起服务、不开托盘程序（托盘程序每次启动都弹聊天窗口）；同名的 Ollama.lnk（安装包自己加的、旧版指向托盘程序的）一并换掉
+$ollamaCli = @("$env:LOCALAPPDATA\Programs\Ollama\ollama.exe", "$Dir\Ollama\ollama.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($ollamaCli) { New-Lnk "$startup\Ollama.lnk" "$env:SystemRoot\System32\conhost.exe" (Split-Path $ollamaCli) 7 '大肥鱼的记忆' "--headless `"$ollamaCli`" serve"; Say '开机自启：Ollama（记忆，后台跑、不出窗口）' }
 if (Get-ChildItem $startup -Filter '*Breeze*' -ErrorAction SilentlyContinue) { Say '开机自启：Breeze 语音（装的时候已经加过）' }
+# 桌宠桥（配过桌宠才有，setup-pet.ps1 建的）：开机后台起来、不出窗口。tools\ 里的桥顺手换成这版 Skill 带的（下次开机或工作台重开后生效）
+if ((Test-Path "$Dir\private\pet-key.txt") -and (Test-Path "$Dir\start-petbridge.cmd")) {
+    New-Item -ItemType Directory -Force "$Dir\tools" | Out-Null
+    foreach ($f in 'dafeiyu_pet_bridge.py', 'pet_config.py', 'pet-persona.txt') { if (Test-Path "$PSScriptRoot\$f") { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force } }
+    New-Lnk "$startup\大肥鱼-桌宠桥.lnk" "$env:SystemRoot\System32\conhost.exe" $Dir 7 '桌宠跟大肥鱼说话走这里，别删' "--headless cmd.exe /c `"$Dir\start-petbridge.cmd`""
+    Say '开机自启：大肥鱼桥（桌宠跟她说话走这里，后台跑、不出窗口）'
+}
 
 # 2 掉线自救：脚本拷进工作目录（观众删了 Skill 也能用），桌面放快捷方式
 New-Item -ItemType Directory -Force "$Dir\tools" | Out-Null
@@ -44,7 +61,7 @@ Say "桌面放了「$reName」"
 #   找不到 Python 时 open.ps1 退回 workbench.ps1 的静态页（只能看，不能修）
 New-Item -ItemType Directory -Force "$Dir\tools\workbench" | Out-Null
 Copy-Item "$PSScriptRoot\workbench\*" "$Dir\tools\workbench\" -Recurse -Force
-foreach ($f in 'workbench.ps1', 'common.ps1', 'backup.ps1', 'diag.ps1', 'import-pack.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
+foreach ($f in 'workbench.ps1', 'common.ps1', 'backup.ps1', 'diag.ps1', 'import-pack.ps1', 'setup-pet.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
 # 工作台「更新」页靠这两个文件：现在是哪一版 Skill、Skill 放在哪（只记技能文件夹里的；从下载文件夹跑的不记）
 $skillHome = Split-Path $PSScriptRoot
 if (Test-Path "$skillHome\version.json") { Copy-Item "$skillHome\version.json" "$Dir\tools\skill-version.json" -Force }

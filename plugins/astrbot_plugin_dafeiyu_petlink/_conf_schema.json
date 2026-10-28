@@ -1,0 +1,44 @@
+{
+  "owner_session": {
+    "description": "主人的 QQ 私聊会话",
+    "type": "string",
+    "hint": "形如 机器人名:FriendMessage:主人QQ号，导入工具会自动填。桌宠会话按这个号认：webchat!主人QQ号!desk-pet",
+    "default": ""
+  },
+  "pet_session_id": {
+    "description": "桌宠在 AstrBot 里的会话名",
+    "type": "string",
+    "hint": "跟大肥鱼桥的 --session 一样，默认 desk-pet，一般不用改",
+    "default": "desk-pet"
+  },
+  "recent_count": {
+    "description": "每次最多带对面几句",
+    "type": "int",
+    "hint": "只带上次之后对面新说的；一句话算一条（主人一句、她一句是两条）。0 = 不带",
+    "default": 8
+  },
+  "recent_hours": {
+    "description": "只带几个小时以内的",
+    "type": "int",
+    "hint": "对面那边超过这么久没人说话，就不带了",
+    "default": 12
+  },
+  "redirect_reminders": {
+    "description": "桌宠里定的提醒，到点发到主人的 QQ 私聊",
+    "type": "bool",
+    "hint": "关掉的话，桌宠里定的提醒到点会发进桌宠的网页会话，桌宠和手机上都看不到",
+    "default": true
+  },
+  "pet_tts_off": {
+    "description": "桌宠那边不发语音",
+    "type": "bool",
+    "hint": "桌宠气泡只显示文字，语音白合成还费钱（豆包按时长扣费）",
+    "default": true
+  },
+  "pet_one_bubble": {
+    "description": "桌宠那边一次回完，不分段",
+    "type": "bool",
+    "hint": "分段回复在句子之间会停 1.5–3.5 秒，桌宠气泡要等整段回完才显示，切开只会让她晚出声。QQ 里照旧分段",
+    "default": true
+  }
+}

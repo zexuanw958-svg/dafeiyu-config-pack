@@ -1,0 +1,5 @@
+{
+  "name": "astrbot_plugin_dafeiyu_resetkeep",
+  "what": "发 /reset 清空聊天前，先把还没存进长期记忆的那几轮存了，清完不会忘了刚才的事",
+  "always_reinstall": true
+}

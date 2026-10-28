@@ -3,7 +3,7 @@
 
 谁来跑它：桌面「大肥鱼工作台」→ tools\\workbench.cmd → workbench\\open.ps1 → AstrBot 自带的 pythonw.exe 跑本文件 --open。
     已经有一个在跑（logs\\workbench\\server.json 里的端口能应答）就只开窗口，不再起第二个。
-它做什么：只听 127.0.0.1，给同目录的 index.html 提供
+它做什么：只听 127.0.0.1，发同目录的 index.html 和 assets\ 里的图、字体（GET /assets/<文件名>，只认 .webp、.woff2），再给页面提供
     GET  /api/status          各项状态（页面每 10 秒问一次）
     GET  /api/logs?src=brain  最近日志（已打码）
     GET  /api/job/<id>        长动作的进度
@@ -49,12 +49,15 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 HERE = Path(__file__).resolve().parent
+ASSETS = HERE / "assets"  # 页面用的图和字体；只发这个文件夹里、下面这几种扩展名的文件
+ASSET_TYPES = {".webp": "image/webp", ".woff2": "font/woff2"}
 SCRIPTS = HERE.parent  # Skill 里是 scripts\，装好后是 <工作目录>\tools\（finish.ps1 把要用的 .ps1 一起拷过去）
 IS_WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if IS_WIN else 0
 DEFAULT_PORT = 26185
+PET_PORT = 26199  # 大肥鱼桥（桌宠走它跟她说话，setup-pet.ps1 装的）；6199 是 QQ 连大脑用的，别撞
 GH_PROXIES = ["https://gh.dpik.top/", "https://edgeone.gh-proxy.com/", "https://hk.gh-proxy.org/", "https://gh-proxy.org/", ""]
 SKILL_REPO = "zexuanw958-svg/dafeiyu-config-pack"  # 安装 Skill 发在这个仓库的 Releases，附件 dafeiyu-install.zip + skill-version.json
 MEME_NAMES = {"blue-fat-fish-meme-pack": "蓝色大肥鱼表情包", "deepseek-fanart-meme-pack": "DeepSeek 二创表情包"}
@@ -427,11 +430,15 @@ def launch_cmd(cmdfile, visible=False, cwd=None):
     raise RuntimeError("没打开")
 
 
-def launch_exe(exe, args=(), cwd=None):
-    flags = (subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008) if IS_WIN else 0  # DETACHED_PROCESS
+def launch_exe(exe, args=(), cwd=None, env=None, hidden=False):
+    """hidden：给它一个看不见的控制台（CREATE_NO_WINDOW），它再起的子程序也跟着看不见。
+    不加的话是 DETACHED_PROCESS，没有控制台；命令行程序再起子程序时，Windows 会给子程序新开一个终端窗口
+    （10-29 测试机：一键修复起 ollama.exe serve，闪出一个黑框挡住工作台）。"""
+    flags = (subprocess.CREATE_NEW_PROCESS_GROUP | (NO_WINDOW if hidden else 0x00000008)) if IS_WIN else 0
     for f in ((flags | 0x01000000) if IS_WIN else 0, flags):
         try:
-            subprocess.Popen([str(exe), *args], cwd=str(cwd or Path(exe).parent), creationflags=f, close_fds=True)
+            subprocess.Popen([str(exe), *args], cwd=str(cwd or Path(exe).parent), creationflags=f, close_fds=True, env=env,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return
         except OSError:
             continue
@@ -657,6 +664,28 @@ def ollama_exe():
     return None
 
 
+def launch_ollama():
+    """只起服务（ollama.exe serve），不开托盘程序：托盘程序每次启动都弹它自己的聊天窗口（10-28 测试机：打完游戏恢复时弹出来）。
+    OLLAMA_MODELS、OLLAMA_KEEP_ALIVE 从注册表现读：装 Ollama 时才设的，工作台自己的环境里可能还没有。"""
+    app = ollama_exe()
+    cli = app.parent / "ollama.exe" if app else None
+    if not cli or not cli.exists():
+        return launch_exe(app)
+    env = dict(os.environ)
+    if IS_WIN:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+                for name in ("OLLAMA_MODELS", "OLLAMA_KEEP_ALIVE"):
+                    try:
+                        env[name] = str(winreg.QueryValueEx(k, name)[0])
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    launch_exe(cli, ("serve",), env=env, hidden=True)
+
+
 def game_file():
     return DIR / "logs" / "game-mode.json"  # DIR 在 main() 里才定下来，不能在模块里先算好
 
@@ -826,6 +855,101 @@ def ollama_version():
         return ""
 
 
+def memory_wiring():
+    """记忆实际接成什么样（只读配置文件和数据库，不登后台）：插件在不在、开没开，指向哪个记忆模型，本机还是在线，在线的有没有 key。
+    以前只看 answers.json 的 memory，选了 2（硅基流动）就一直亮绿灯；10-28 群友那台插件配的是硅基流动、key 空着，照样是绿的。"""
+    def get():
+        w = {"installed": False, "on": None, "provider": False, "local": False, "ollama": False, "sf": False, "model": "", "key": False}
+        dd = data_dir()
+        if not dd:
+            return w
+        w["installed"] = (dd / "plugins" / LM_PLUGIN).is_dir()
+        if not w["installed"]:
+            return w
+        db = dd / "data_v4.db"
+        if db.exists():  # 后台里被关掉的插件记在 preferences 表的 inactivated_plugins
+            try:
+                c = sqlite_ro(db)
+                try:
+                    row = c.execute("select value from preferences where key = 'inactivated_plugins'").fetchone()
+                    v = json.loads(row[0]) if row and isinstance(row[0], str) else (row[0] if row else {})
+                    vals = v.get("val") if isinstance(v, dict) else v
+                    w["on"] = not any(LM_PLUGIN in str(x) for x in (vals or []))
+                finally:
+                    c.close()
+            except (sqlite3.Error, ValueError, TypeError):
+                pass
+        lc = read_json(dd / "config" / f"{LM_PLUGIN}_config.json", {}) or {}
+        pid = str((lc.get("provider_settings") or {}).get("embedding_provider_id") or "")
+        cfg = read_json(dd / "cmd_config.json", {}) or {}
+        p = next((x for x in cfg.get("provider") or [] if isinstance(x, dict) and pid and str(x.get("id")) == pid), None)
+        if p:
+            b = str(p.get("embedding_api_base") or p.get("api_base") or "")
+            w.update(provider=True, local=bool(re.search(r"//(127\.0\.0\.1|localhost)[:/]", b)), ollama=":11434" in b, sf="siliconflow" in b,
+                     model=str(p.get("embedding_model") or p.get("model") or ""), key=bool(str(p.get("embedding_api_key") or p.get("api_key") or "").strip()))
+        return w
+    return cached("memwire", 20, get)
+
+
+def asr_state(a):
+    """看视频的「听声音」现在是什么：local（本机识别齐了）、plus（还装了增强版）、online（硅基流动在线识别）、half（本机模型只下了半截）、none。
+    本机识别要程序、模型、词表三样都在，模型要是完整的：以前的安装脚本断了会在 asr 里留半截模型，光看 exe 在不在会当成能听。"""
+    asr = Path(a.get("asr_dir") or read_text(DIR / "asr-path.txt") or str(DIR / "asr"))
+    files = [asr / "sherpa-onnx-offline.exe", asr / "model.int8.onnx", asr / "tokens.txt"]
+    if all(f.exists() for f in files):
+        try:
+            full = files[1].stat().st_size >= 200_000_000
+        except OSError:
+            full = False
+        if full:
+            return "plus" if (asr / "funasr-nano" / "llm.int8.onnx").exists() else "local"
+    dd = data_dir()
+    vc = read_json(dd / "config" / "astrbot_plugin_dafeiyu_video_config.json", {}) if dd else {}
+    if str((vc or {}).get("asr_key") or "").strip():
+        return "online"
+    return "half" if (asr / "model.int8.onnx").exists() else "none"
+
+
+def launcher_autostart():
+    """AstrBot 启动器「高级 → 通用 → 开机自启动」开没开：开了会在 HKCU\\...\\Run 写一项 AstrBot Launcher；
+    在任务管理器「启动」页里关掉的记在 StartupApproved\\Run（第一个字节是单数＝关了）。不是 Windows 返回 None。"""
+    if not IS_WIN:
+        return None
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run") as k:
+            names = []
+            i = 0
+            while True:
+                try:
+                    n, v, _ = winreg.EnumValue(k, i)
+                except OSError:
+                    break
+                names.append((n, str(v)))
+                i += 1
+    except OSError:
+        return False
+    name = next((n for n, v in names if re.search(r"(?i)astrbot[ _-]?launcher", f"{n} {v}")), None)
+    if not name:
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run") as k:
+            b, _ = winreg.QueryValueEx(k, name)
+            if isinstance(b, (bytes, bytearray)) and b and b[0] & 1:
+                return False
+    except OSError:
+        pass
+    return True
+
+
+def whitelist_on():
+    dd = data_dir()
+    cfg = read_json(dd / "cmd_config.json", {}) if dd else None
+    if not isinstance(cfg, dict):
+        return None
+    return bool((cfg.get("platform_settings") or {}).get("enable_id_white_list"))
+
+
 # ---------------------------------------------------------------- 今天的真数据（AstrBot 的数据库，只读）
 
 def sqlite_ro(path):
@@ -895,6 +1019,7 @@ RESULT_RX = re.compile(r"^RESULT\s+(\w+)=(\w+)(?:\s+reason=(\S+))?(?:\s+next=(.*
 REASON_TEXT = {
     "network": "网络下不动（几个 GitHub 加速地址都没连上）", "ollama": "Ollama 没开，或者记忆模型 bge-m3 没下好", "login": "后台登不上（后台密码改过？）",
     "breeze-off-kept": "Breeze 没开，语音先没动", "test": "试了一下没通过", "not-chosen": "没选这项", "no-bot": "小号还没接上", "no-model": "DeepSeek 还没接好",
+    "no-key": "硅基流动的密钥是空的，记忆先关着", "not-in-answers": "回答文件里没写要不要这项", "no-asr": "识别模型没装上，视频里的话先听不到", "no-plugin": "插件还没装上",
 }
 
 
@@ -1275,36 +1400,53 @@ def collect_status():
         ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "这会儿查不到余额（连不上 DeepSeek），不一定影响聊天，过会儿再看。", links=dlinks, pill="查不到")
     else:
         ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "正在查余额……", links=dlinks, pill="在查")
+    if whitelist_on() is False and ds["state"] in ("ok", "warn", "unk"):
+        # 白名单关着是他自己选的，不改颜色，只把代价写明白
+        ds["text"] = ds["text"].strip() + "白名单没开：谁 @ 她都能用，花的是你的余额。"
     items.append(ds)
 
-    # 4 记忆
+    # 4 记忆：看实际接成什么样（插件开没开、指向哪个模型、在线的有没有 key、本机的模型在不在），answers.json 只当「他选过要不要」
     st = today_stats()
     mem = a.get("memory", "")
     mlinks = [{"label": "看她记住了什么", "href": base + "/#/plugin-view/astrbot_plugin_livingmemory/dashboard"}]
     mcount = f"记住了 {st['memories']} 件事。" if "memories" in st else ""
     mwhat = "让她记得你说过的事。"
     gm = game_mode()
-    if mem == "1":
+    w = memory_wiring()
+    mname = "记忆 · 本机 Ollama" if w["ollama"] else "记忆 · 硅基流动" if w["sf"] else "记忆"
+    want = mem in ("1", "2")
+    if gm and gm.get("mem") and w["on"] is not True:
+        memi = item("memory", mname, "i-book", mwhat, "off", "打游戏模式：先关着。她照样聊天，只是不记新的事（以前记住的还在）。", links=mlinks, pill="打游戏中")
+    elif not w["installed"] or w["on"] is False:
+        if want:
+            memi = item("memory", mname, "i-book", mwhat, "bad", "选了要记忆，但记忆插件" + ("没装上" if not w["installed"] else "关着（上次多半没接好，被关掉了）") + "，她记不住事。交给 Agent 补一下。",
+                        extra={"ask": "memfix"})
+        else:
+            memi = item("memory", "记忆", "i-book", mwhat, "off", "没开。想要的话去「交给 Agent」。", extra={"ask": "memory"})
+    elif not w["provider"]:
+        memi = item("memory", mname, "i-book", mwhat, "bad", "记忆插件开着，但没接上记忆模型，她记不住事。交给 Agent 接一下。", links=mlinks, extra={"ask": "memfix"})
+    elif w["ollama"]:
+        mm = (w["model"] or "bge-m3").split(":")[0]
         if gm and not listening(11434):
-            memi = item("memory", "记忆 · 本机 Ollama", "i-book", mwhat, "off", "打游戏模式：先关着。她照样聊天，只是不记新的事（以前记住的还在）。",
-                        links=mlinks, pill="打游戏中")
+            memi = item("memory", mname, "i-book", mwhat, "off", "打游戏模式：先关着。她照样聊天，只是不记新的事（以前记住的还在）。", links=mlinks, pill="打游戏中")
         elif listening(11434):
             models = ollama_models()
-            if models is None or any(m.startswith("bge-m3") for m in models):
-                memi = item("memory", "记忆 · 本机 Ollama", "i-book", mwhat, "ok", f"开着。{mcount}", links=mlinks)
+            if models is None or any(m.split(":")[0] == mm for m in models):
+                memi = item("memory", mname, "i-book", mwhat, "ok", f"开着。{mcount}", links=mlinks)
             else:
-                memi = item("memory", "记忆 · 本机 Ollama", "i-book", mwhat, "bad", "Ollama 开着，但记忆模型 bge-m3 不在，她记不住新的事。交给 Agent 重新下一下（约 1.2 GB）。",
+                memi = item("memory", mname, "i-book", mwhat, "bad", f"Ollama 开着，但记忆模型 {mm} 不在，她记不住新的事。交给 Agent 重新下一下（约 1.2 GB，走国内 ModelScope）。",
                             links=mlinks, extra={"ask": "bge"})
         elif job_running("ollama"):
-            memi = item("memory", "记忆 · 本机 Ollama", "i-book", mwhat, "busy", "正在打开 Ollama……", links=mlinks)
+            memi = item("memory", mname, "i-book", mwhat, "busy", "正在打开 Ollama……", links=mlinks)
         else:
             fx = {"action": "start_ollama", "label": "一键修复"} if ollama_exe() else None
-            memi = item("memory", "记忆 · 本机 Ollama", "i-book", mwhat, "bad", "Ollama 没开，她记不住新的事（以前记住的还在）。" + ("修复会把它打开。" if fx else "从开始菜单打开 Ollama。"),
-                        fix=fx, links=mlinks)
-    elif mem == "2":
-        memi = item("memory", "记忆 · 硅基流动", "i-book", mwhat, "ok", f"在线服务，不用开。{mcount}", links=mlinks)
+            memi = item("memory", mname, "i-book", mwhat, "bad", "Ollama 没开，她记不住新的事（以前记住的还在）。" + ("修复会把它打开。" if fx else "Ollama 没找到，交给 Agent 装一下。"),
+                        fix=fx, links=mlinks, extra=None if fx else {"ask": "bge"})
+    elif not w["local"] and not w["key"]:
+        memi = item("memory", mname, "i-book", mwhat, "bad", "记忆接的是在线服务，但没填密钥，她记不住事。交给 Agent：粘一把硅基流动的密钥，或者改成本机记忆，或者干脆先关掉。",
+                    links=mlinks, extra={"ask": "memfix"})
     else:
-        memi = item("memory", "记忆", "i-book", mwhat, "off", "没开。想要的话去「交给 Agent」。", extra={"ask": "memory"})
+        memi = item("memory", mname, "i-book", mwhat, "ok", f"在线服务，不用开。{mcount}", links=mlinks)
     items.append(memi)
 
     # 5 语音
@@ -1338,16 +1480,18 @@ def collect_status():
     vwhat2 = "看懂你发的图和视频。"
     if video:
         ff = a.get("ffmpeg_path") or read_text(DIR / "ffmpeg-path.txt") or str(DIR / "ffmpeg" / "bin" / "ffmpeg.exe")
-        asr = Path(a.get("asr_dir") or read_text(DIR / "asr-path.txt") or str(DIR / "asr"))
-        hear = (asr / "sherpa-onnx-offline.exe").exists()
-        plus = (asr / "funasr-nano" / "llm.int8.onnx").exists()
+        hear = asr_state(a)
         lk = [{"label": "截几张、看多长", "href": base + "/#/extension?open_config=astrbot_plugin_dafeiyu_video"}]
         if not Path(ff).exists():
             vis = item("vision", "看图看视频", "i-image", vwhat2, "bad", "找不到 ffmpeg，她看不了视频（看图不受影响）。交给 Agent 重新装一下。", links=lk, extra={"ask": "video"})
-        elif hear:
-            vis = item("vision", "看图看视频", "i-image", vwhat2, "ok", "能看图、看视频，也听得懂视频里说的话" + ("（装了方言、歌词增强版）。" if plus else "。"), links=lk)
+        elif hear in ("local", "plus"):
+            vis = item("vision", "看图看视频", "i-image", vwhat2, "ok", "能看图、看视频，也听得懂视频里说的话" + ("（装了方言、歌词增强版）。" if hear == "plus" else "。"), links=lk)
+        elif hear == "online":
+            vis = item("vision", "看图看视频", "i-image", vwhat2, "ok", "能看图、看视频；视频里说的话用硅基流动在线识别（声音会传给硅基流动）。", links=lk)
         else:
-            vis = item("vision", "看图看视频", "i-image", vwhat2, "ok", "能看图、看视频画面；视频里说的话听不到（识别模型没装）。", links=lk)
+            vis = item("vision", "看图看视频", "i-image", vwhat2, "warn",
+                       "能看图、看视频画面，但视频里说的话听不到：" + ("识别模型只下了一半。" if hear == "half" else "识别模型没装上。") + "交给 Agent 补装（先走国内 ModelScope）。",
+                       links=lk, extra={"ask": "hear"})
     else:
         vis = item("vision", "看图看视频", "i-image", vwhat2, "ok", "能看图。看视频没装，想要的话去「交给 Agent」。", pill="能看图", extra={"ask": "video"})
     items.append(vis)
@@ -1362,13 +1506,22 @@ def collect_status():
     if cli:
         need.append(("大肥鱼-AstrBot.lnk", "大脑"))
     need.append(("大肥鱼-SnowLuma.lnk" if proto == "snowluma" else "大肥鱼-NapCat.lnk", pname))
-    if mem == "1" and ollama_exe():
+    if (mem == "1" or w["ollama"]) and ollama_exe():
         need.append(("Ollama.lnk", "Ollama（记忆）"))
+    if pet_on() and (DIR / "start-petbridge.cmd").exists():
+        need.append(("大肥鱼-桌宠桥.lnk", "大肥鱼桥（桌宠）"))
     for f, label in need:
         if f not in lnks:
             miss.append(label)
     if voice == "4" and not any("breeze" in n.lower() for n in lnks):
         miss.append("Breeze（语音）")
+    # 启动器装的大脑：开机自启在启动器里开（我们不替他改启动器的设置）。没开就提醒，开了也说一句实例要跟着起来还得开「退出时保留实例运行状态」
+    la = None if cli else launcher_autostart()
+    lnote = ""
+    if la is False:
+        lnote = "大脑（AstrBot 启动器）开机不会自己起来：打开启动器，点最左边「高级」，在「通用」里打开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」。启动器一退出大脑也会停，托盘图标别点退出。"
+    elif la:
+        lnote = "大脑跟着 AstrBot 启动器起来（启动器「高级 → 通用」里「退出时保留实例运行状态」要开着，实例才会跟着开；托盘图标别点退出）。"
     both = "大肥鱼-SnowLuma.lnk" in lnks and "大肥鱼-NapCat.lnk" in lnks
     bt = boot_time()
     boot = ""
@@ -1378,10 +1531,12 @@ def collect_status():
         auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", "SnowLuma 和 NapCat 都设了开机自启，会抢同一个小号、互相挤下线。修复会只留现在用的那个。",
                     fix={"action": "autostart_fix", "label": "一键修复"})
     elif miss:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", f"开机后{'、'.join(miss)}不会自己起来。修复会把开机自启补上。" + ("" if cli else "（大脑在 AstrBot 启动器里设开机自启。）"),
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", f"开机后{'、'.join(miss)}不会自己起来。修复会把开机自启补上。" + (lnote if la is False else ""),
                     fix={"action": "autostart_fix", "label": "补上"})
+    elif la is False and not boot:
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", lnote + "开好以后重启电脑看一眼，她自己上线就对了。")
     else:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "ok", boot or ("都设好了。" + ("" if cli else "大脑的开机自启在 AstrBot 启动器里管。")))
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "ok", boot or ("都设好了。" + lnote))
         if proto == "snowluma":
             auto["text"] += "桌面 QQ 要在它自己的设置里开「开机自动启动」、登录时勾「自动登录」。" if not boot else ""
     items.append(auto)
@@ -1407,6 +1562,26 @@ def collect_status():
     else:
         memes = item("memes", "表情包", "i-smile", ewhat, "ok", f"装了 {len(mi['installed'])} 套，共 {mi['images']} 张。", links=elinks)
     items.append(memes)
+
+    # 9 桌宠（配过才有这一项：private\pet-key.txt 在）
+    if pet_on():
+        pwhat = "电脑桌宠里跟你说话的也是她，记忆跟 QQ 私聊共用一份。"
+        h = pet_health() if listening(PET_PORT) else None
+        rb = [{"action": "restart_petbridge", "label": "重开大肥鱼桥"}]
+        if job_running("pet"):
+            pet = item("pet", "桌宠", "i-persona", pwhat, "busy", "正在重开大肥鱼桥……")
+        elif h and h.get("astrbot") == "ok":
+            pet = item("pet", "桌宠", "i-persona", pwhat, "ok", "连着她。桌宠右键「对话」就是跟她说话（DeepSeek Harness 要开着，桌宠才在）。", btns=rb)
+        elif h and not listening(port):
+            pet = item("pet", "桌宠", "i-persona", pwhat, "off", "大脑没开，桌宠这会儿找不到她。大脑开好就自己连上。")
+        elif h:
+            pet = item("pet", "桌宠", "i-persona", pwhat, "warn", "大肥鱼桥开着，但大脑不让它进（桌宠的 key 可能被删了）。交给 Agent 重新配一下桌宠。", btns=rb, extra={"ask": "pet"})
+        elif (DIR / "start-petbridge.cmd").exists():
+            pet = item("pet", "桌宠", "i-persona", pwhat, "warn", "大肥鱼桥没在跑：桌宠这会儿是 DeepSeek Harness 自己的模型在回话，不知道 QQ 里的事。修复会把它重新开起来，几秒钟。",
+                       fix={"action": "restart_petbridge", "label": "重开大肥鱼桥"})
+        else:
+            pet = item("pet", "桌宠", "i-persona", pwhat, "warn", "找不到大肥鱼桥的启动文件。交给 Agent 重新配一下桌宠。", extra={"ask": "pet"})
+        items.append(pet)
 
     # 今天的数字
     stats = []
@@ -1447,7 +1622,8 @@ def collect_status():
     secrets_files = []
     desc = {"backend.txt": "AstrBot 后台的账号和密码", "deepseek-key.txt": "DeepSeek 密钥（扣钱的钥匙）", "napcat-ws-token.txt": "QQ 程序连大脑用的口令",
             "snowluma-webui.txt": "SnowLuma 后台密码", "napcat-webui-token.txt": "NapCat 后台口令", "owner-qq.txt": "你的大号（她只认这个号是主人）",
-            "bot-qq.txt": "她的小号", "volc.txt": "豆包语音的两项凭证", "group.txt": "她进的群", "siliconflow-key.txt": "硅基流动密钥", "mimo-key.txt": "小米 MiMo 密钥"}
+            "bot-qq.txt": "她的小号", "volc.txt": "豆包语音的两项凭证", "group.txt": "她进的群", "siliconflow-key.txt": "硅基流动密钥", "sf-key.txt": "硅基流动密钥", "mimo-key.txt": "小米 MiMo 密钥",
+            "pet-key.txt": "桌宠用的大脑接口密钥（只能用来跟她聊天）", "pet-bridge-token.txt": "桌宠调大肥鱼桥的口令"}
     try:
         for f in sorted((DIR / "private").iterdir()):
             if f.is_file() and f.name != "protocol.txt":
@@ -1692,7 +1868,7 @@ def act_start_ollama(job):
     if not exe:
         return job.done(False, "没找到 Ollama，从开始菜单打开它；找不到就交给 Agent。")
     job.set("打开 Ollama……", 15)
-    launch_exe(exe)
+    launch_ollama()
     if not wait_until(lambda: listening(11434), 60, job, 15, 90, "等 Ollama 起来……"):
         return job.done(False, "一分钟还没开起来。从开始菜单打开 Ollama 试试。")
     # 端口刚通时模型列表常常还是空的（10-28 测试机误报过「bge-m3 不在」），等它一会儿
@@ -1766,7 +1942,7 @@ def act_game_on(job):
         kill_pids(ollama_pids())
         wait_until(lambda: not listening(11434), 20, job, 65, 90, "等 Ollama 关掉……")
         if listening(11434):
-            notes.append("Ollama 没关掉，在任务栏右下角羊驼图标上右键「Quit Ollama」")
+            notes.append("Ollama 没关掉，在任务管理器里结束「ollama」")
     off = "、".join(x for x, y in (("语音", voice), ("记忆", mem)) if y)
     msg = f"打游戏模式开了：本机的{off}都关了。她照样回消息，只是只打字、这段时间说的事不记（以前记住的都还在）。打完点「打完了，恢复」；忘了点也没事，重启电脑会自己恢复。"
     return job.done(True, msg + ("另外：" + "；".join(notes) + "。" if notes else ""))
@@ -1787,7 +1963,7 @@ def act_game_off(job, boot=False):
             wait_until(lambda: listening(11434), 120, job, 5, 15, "等 Ollama 自己起来……")
         if not listening(11434) and ollama_exe():
             job.set("打开 Ollama……", 15)
-            launch_exe(ollama_exe())
+            launch_ollama()
             wait_until(lambda: listening(11434), 60, job, 15, 30, "等 Ollama 起来……")
         if listening(11434):
             job.set("把记忆模型装进内存……", 32)
@@ -1935,11 +2111,52 @@ def act_backup(job, memes=False):
     job.done(True, f"备好了：桌面「{Path(out_file).name}」（{size}）。里面有你的密钥，别发给别人。", file=out_file, name=Path(out_file).name, size=size, files=total)
 
 
+def pet_on():
+    return (DIR / "private" / "pet-key.txt").exists()
+
+
+def pet_health():
+    """大肥鱼桥的 /health?deep=1：{"ok", "version", "astrbot": "ok"|"fail", "reason"}。连不上返回 None。不带口令也能看，不含秘密。"""
+    def get():
+        try:
+            return http_json(f"http://127.0.0.1:{PET_PORT}/health?deep=1", timeout=6)
+        except Exception:  # noqa: BLE001
+            return None
+    return cached("pet", 8, get)
+
+
+def act_restart_petbridge(job):
+    cmdf = DIR / "start-petbridge.cmd"
+    if not cmdf.exists():
+        return job.done(False, "没找到大肥鱼桥的启动文件（start-petbridge.cmd）。交给 Agent 重新配一下桌宠。")
+    lp = net_snapshot()[0].get(PET_PORT)
+    if lp and "dafeiyu_pet_bridge" in cmdline(lp):
+        job.set("停掉旧的大肥鱼桥……", 15)
+        kill_pids([lp])
+        wait_until(lambda: drop_cache("net") or not listening(PET_PORT), 10)
+    elif lp:
+        return job.done(False, f"端口 {PET_PORT} 被别的程序占着，大肥鱼桥开不起来。点「复制求助信息」交给 Agent 看看。")
+    job.set("打开大肥鱼桥……", 40)
+    # 直接起 Python（不出窗口）；启动文件里认不出 Python 的路径就照原样跑启动文件（最小化窗口）
+    m = re.search(r'"([^"]+?python[w]?\.exe)"\s+-X utf8\s+"([^"]+dafeiyu_pet_bridge\.py)"\s+--dir\s+"([^"]+)"', read_text(cmdf), re.I)
+    if m and Path(m.group(1)).exists() and Path(m.group(2)).exists():
+        launch_exe(m.group(1), ("-X", "utf8", m.group(2), "--dir", m.group(3)), cwd=DIR)
+    else:
+        launch_cmd(cmdf)
+    drop_cache("pet")
+    if not wait_until(lambda: drop_cache("net", "pet") or bool(pet_health()), 20, job, 40, 95, "等它起来……"):
+        return job.done(False, "20 秒还没起来。看看工作目录 logs 里的 pet-bridge.log 最后几行，或者点「复制求助信息」。")
+    h = pet_health() or {}
+    if h.get("astrbot") != "ok":
+        return job.done(False, "大肥鱼桥开起来了，但连不上她的大脑" + ("（大脑没开）" if not listening(backend_port()) else "（桌宠的 key 可能被删了，交给 Agent 重新配一下桌宠）") + "。")
+    return job.done(True, "大肥鱼桥开好了，桌宠又能跟她说话了。")
+
+
 AUTOSTART_PS = r"""
 $ErrorActionPreference = 'Continue'
 $Dir = $env:DFY_DIR; $proto = $env:DFY_PROTO; $mem = $env:DFY_MEM; $voice = $env:DFY_VOICE
 $startup = [Environment]::GetFolderPath('Startup'); $ws = New-Object -ComObject WScript.Shell
-function L($p, $t, $w, $d) { $l = $ws.CreateShortcut($p); $l.TargetPath = $t; $l.WorkingDirectory = $w; $l.WindowStyle = 7; $l.Description = $d; $l.Save(); "ADDED $(Split-Path $p -Leaf)" }
+function L($p, $t, $w, $d, $a = '') { $l = $ws.CreateShortcut($p); $l.TargetPath = $t; $l.Arguments = $a; $l.WorkingDirectory = $w; $l.WindowStyle = 7; $l.Description = $d; $l.Save(); "ADDED $(Split-Path $p -Leaf)" }
 if ((Test-Path "$Dir\start-astrbot.cmd") -and -not (Test-Path "$startup\大肥鱼-AstrBot.lnk")) { L "$startup\大肥鱼-AstrBot.lnk" "$Dir\start-astrbot.cmd" $Dir '大肥鱼的大脑，别关' }
 if ($proto -eq 'snowluma') {
   if (Test-Path "$startup\大肥鱼-NapCat.lnk") { Remove-Item "$startup\大肥鱼-NapCat.lnk"; 'REMOVED 大肥鱼-NapCat.lnk' }
@@ -1949,11 +2166,14 @@ if ($proto -eq 'snowluma') {
   if ((Test-Path "$Dir\start-napcat.cmd") -and -not (Test-Path "$startup\大肥鱼-NapCat.lnk")) { L "$startup\大肥鱼-NapCat.lnk" "$Dir\start-napcat.cmd" $Dir '帮大肥鱼登 QQ，别关' }
 }
 if ($mem -eq '1' -and -not (Test-Path "$startup\Ollama.lnk")) {
-  $o = @("$env:LOCALAPPDATA\Programs\Ollama\ollama app.exe", "$Dir\Ollama\ollama app.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-  if ($o) { L "$startup\Ollama.lnk" $o (Split-Path $o) '大肥鱼的记忆' }
+  $o = @("$env:LOCALAPPDATA\Programs\Ollama\ollama.exe", "$Dir\Ollama\ollama.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if ($o) { L "$startup\Ollama.lnk" "$env:SystemRoot\System32\conhost.exe" (Split-Path $o) '大肥鱼的记忆' "--headless `"$o`" serve" }
 }
 if ($voice -eq '4' -and -not (Get-ChildItem $startup -Filter '*Breeze*' -ErrorAction SilentlyContinue) -and (Test-Path "$Dir\breeze-tts\start-breeze.cmd")) {
   L "$startup\启动Breeze语音.lnk" "$Dir\breeze-tts\start-breeze.cmd" "$Dir\breeze-tts" '大肥鱼的语音'
+}
+if ((Test-Path "$Dir\private\pet-key.txt") -and (Test-Path "$Dir\start-petbridge.cmd") -and -not (Test-Path "$startup\大肥鱼-桌宠桥.lnk")) {
+  L "$startup\大肥鱼-桌宠桥.lnk" "$env:SystemRoot\System32\conhost.exe" $Dir '桌宠跟大肥鱼说话走这里，别删' "--headless cmd.exe /c `"$Dir\start-petbridge.cmd`""
 }
 'DONE'
 """
@@ -2083,6 +2303,9 @@ def act_skill_update(job):
             shutil.copytree(newpack, pack)
         except OSError:
             shutil.copytree(newpack, pack, dirs_exist_ok=True)  # 挪不走（有文件开着）就盖在上面
+        old_voice = bk / "dafeiyu-config-pack" / "voice" / "breeze"  # 做声音时留底的参考音、原话、原录音，不在发布包里
+        if old_voice.is_dir():
+            shutil.copytree(old_voice, pack / "voice" / "breeze", dirs_exist_ok=True)
 
     job.set("换上新版工作台……", 75)
     code, out = powershell((replaced[0] if replaced else src) / "scripts" / "finish.ps1", "-Dir", DIR, timeout=180)
@@ -2154,6 +2377,7 @@ ACTIONS = {
     "diag": ("diag", "复制求助信息", lambda j, b: act_diag(j)),
     "backup": ("backup", "备份到桌面", lambda j, b: act_backup(j, bool(b.get("memes")))),
     "autostart_fix": ("autostart", "补开机自启", lambda j, b: act_autostart_fix(j)),
+    "restart_petbridge": ("pet", "重开大肥鱼桥", lambda j, b: act_restart_petbridge(j)),
     "group_reply": ("grouprep", "群里回复时", lambda j, b: act_group_reply(j, str(b.get("mode", "")))),
     "meme_freq": ("memefreq", "表情包发多少", lambda j, b: act_meme_freq(j, str(b.get("level", "")))),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: act_skill_update(j)),
@@ -2170,7 +2394,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # 不往 stderr 写（pythonw 没有），也不记请求
         pass
 
-    def send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
+    def send(self, code, body, ctype="application/json; charset=utf-8", extra=None, cache="no-store"):
         if isinstance(body, (dict, list)):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         elif isinstance(body, str):
@@ -2178,12 +2402,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
         if ctype.startswith("text/html"):
-            self.send_header("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+            self.send_header("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; font-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -2199,6 +2423,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return False
         return True
 
+    def send_asset(self, name):
+        """发 assets\\ 里的一个文件：只认文件名本身（不许带 / \\ .. 盘符这些往别处走的写法），只认白名单扩展名。图和字体不含秘密，可以缓存。"""
+        ctype = ASSET_TYPES.get(Path(name).suffix.lower())
+        if not ctype or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}", name) or ".." in name:
+            return self.send(404, {"ok": False})
+        try:
+            base = ASSETS.resolve()
+            f = (base / name).resolve()
+            if f.parent != base or not f.is_file():
+                return self.send(404, {"ok": False})
+            st = f.stat()
+            etag = f'"{st.st_size:x}-{st.st_mtime_ns:x}"'
+            cache = "public, max-age=86400"
+            if self.headers.get("If-None-Match") == etag:
+                return self.send(304, b"", ctype, {"ETag": etag}, cache)
+            return self.send(200, f.read_bytes(), ctype, {"ETag": etag}, cache)
+        except OSError:
+            return self.send(404, {"ok": False})
+
     def do_GET(self):
         global LAST_SEEN
         url = urllib.parse.urlsplit(self.path)
@@ -2210,7 +2453,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 html = (HERE / "index.html").read_bytes()
             except OSError:
                 return self.send(500, "index.html 不见了", "text/plain; charset=utf-8")
+            html = html.replace(b"__WB_V__", VERSION.encode("ascii"))  # 图和字体网址带上版本号，更新后不用旧缓存
             return self.send(200, html, "text/html; charset=utf-8")
+        if path.startswith("/assets/"):
+            if not self.guard(False):  # 跟发 index.html 一样只查 Host（token 在网址 # 后面，图和字体的请求带不上）
+                return
+            return self.send_asset(urllib.parse.unquote(path[len("/assets/"):]))
         if path == "/favicon.ico":
             return self.send(204, b"", "image/x-icon")
         if not path.startswith("/api/"):

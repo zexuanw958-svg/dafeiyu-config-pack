@@ -1,0 +1,4 @@
+ok.webp、warn.webp、bad.webp 画的是社区二创形象「女仆鲸鱼娘」（DeepSeek「大肥鱼」，非 DeepSeek 官方形象）。
+原型「溟月」：B 站 @上善无形；DeepSeek 版（女仆鲸鱼娘）设计：B 站 @ZipZipPipe。
+这三张图按原作的 CC BY-NC-SA 4.0 许可提供（https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans）：署名、非商业、相同方式共享，不能用于任何商业用途。
+同文件夹的字体另有许可，见 serif-600.OFL.txt。

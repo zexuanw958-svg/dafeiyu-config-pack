@@ -1,0 +1,9 @@
+name: astrbot_plugin_dafeiyu_resetkeep
+display_name: 大肥鱼清空不失忆
+desc: 发 /reset 清空聊天时，先把还没存进长期记忆的那几轮存了再清，改完人设清一下也不会忘了刚才的事
+help: 装上就行，不用设置；没开长期记忆时什么都不做
+version: v0.1.0
+author: zexuan604
+support_platforms:
+  - aiocqhttp
+  - webchat

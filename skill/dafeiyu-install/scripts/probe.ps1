@@ -214,7 +214,8 @@ if (-not $NoNetwork -and $netVia -eq 'https' -and $cmds['curl.exe']) {
 }
 
 # ---------- 2. 端口和进程 ----------
-$watchPorts = 6185, 6186, 6199, 6099, 11434, 8137, 5099, 3000, 3001, 3100
+# 6285：SKILL.md「另装一套」给第二套用的后台端口
+$watchPorts = 6185, 6186, 6285, 6199, 6099, 11434, 8137, 5099, 3000, 3001, 3100
 $ports = [ordered]@{}
 $tcp | Where-Object { "$($_.State)" -eq 'Listen' } | Where-Object { $_.LocalPort -in $watchPorts -or ($_.LocalPort -ge 18600 -and $_.LocalPort -le 18620) } | ForEach-Object {
     $pr = Get-Process -Id $_.OwningProcess
@@ -252,6 +253,8 @@ foreach ($dr in $drives) {
     Get-ChildItem -LiteralPath "$($dr.drive)\" -Directory -Force | Where-Object { $_.Name -match $kw -and $_.Name -notmatch '^\$' } | ForEach-Object { $roots.Add($_.FullName) }
 }
 Get-ChildItem -LiteralPath $env:USERPROFILE -Directory -Force | Where-Object { $_.Name -match $kw } | ForEach-Object { $roots.Add($_.FullName) }
+# 本 Skill 记下的工作目录名字可能跟上面的关键字都不沾（比如 E:\xyz），也要找
+if ($workDir) { $roots.Add($workDir) }
 $roots = New-Object Collections.Generic.List[string] -ArgumentList (,[string[]]@($roots | Where-Object { -not (Excluded $_) }))
 $wanted = 'NapCatInstaller.exe', 'napcat.bat', 'NapCatWinBootMain.exe', 'cmd_config.json', 'launcher.bat', 'package.json', 'start.bat', 'Lagrange.OneBot.exe', 'LLOneBot.exe', 'LuckyLilliaBot.exe', 'bot.py'
 $hits = @()
@@ -261,6 +264,17 @@ foreach ($r in ($roots | Select-Object -Unique)) {
 
 # ---------- 4. AstrBot（启动器） ----------
 $launcher = Installed 'AstrBot Launcher'
+# 启动器「高级 → 通用 → 开机自启动」开没开：开了会在 HKCU\...\Run 写一项（AstrBot Launcher，值带 --autostart）；
+# 在任务管理器「启动」页里被关掉的记在 StartupApproved\Run（第一个字节是单数＝关了）。「退出时保留实例运行状态」在启动器自己的数据库里，读不到
+$launcherAutostart = $false
+$runKey = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+if ($runKey) {
+    foreach ($pp in $runKey.PSObject.Properties) {
+        if ($pp.Name -match '^PS(Path|ParentPath|ChildName|Drive|Provider)$' -or "$($pp.Name) $($pp.Value)" -notmatch '(?i)astrbot[ _-]?launcher') { continue }
+        $ap = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run').($pp.Name)
+        $launcherAutostart = -not ($ap -is [byte[]] -and $ap.Length -gt 0 -and ($ap[0] -band 1)); break
+    }
+}
 $dataDirs = New-Object Collections.Generic.List[string]
 $override = ReadJson "$env:APPDATA\com.github.raven95676.astrbot-launcher\.data-dir.json"
 $dataDirOverridden = $false
@@ -269,6 +283,21 @@ $dataDirs.Add("$env:USERPROFILE\.astrbot_launcher")
 
 $packPlugins = 'astrbot_plugin_group_chat_plus', 'astrbot_plugin_livingmemory', 'meme_manager', 'astrbot_plugin_qzone', 'astrbot_plugin_qqprofile', 'astrbot_plugin_proactive_chat'
 $astrTokens = New-Object Collections.Generic.List[string]   # 只在内存里比对，不输出
+
+# Ollama 里有没有某个模型：Ollama 开着就问它（最准）；没开再看模型文件夹。
+# 只看文件夹会漏：Ollama 是带别的 OLLAMA_MODELS 启动的时候，模型在别处（10-28 测试机就是这样，接口里有 bge-m3，默认文件夹里没有）
+$script:ollamaNames = $null
+function OllamaHas([string]$model) {
+    $name = ($model -split ':')[0]
+    if (-not $name) { return $false }
+    if ($null -eq $script:ollamaNames) {
+        $script:ollamaNames = @()
+        try { $script:ollamaNames = @((Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 4 -ErrorAction Stop).models | ForEach-Object { ("$($_.name)" -split ':')[0] }) } catch {}
+    }
+    if ($name -in $script:ollamaNames) { return $true }
+    $om = $env:OLLAMA_MODELS; if (-not $om) { $om = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User') }; if (-not $om) { $om = "$env:USERPROFILE\.ollama\models" }
+    return (Test-Path -LiteralPath (Join-Path $om "manifests\registry.ollama.ai\library\$name"))
+}
 
 function Inspect-AstrBot([string]$dataRoot, [string]$kind, [string]$instDir) {
     # $dataRoot 是含 cmd_config.json 的 data 目录
@@ -326,10 +355,13 @@ function Inspect-AstrBot([string]$dataRoot, [string]$kind, [string]$instDir) {
     foreach ($p in @($cfg.provider)) {
         if (-not $p) { continue }
         $src = $srcs["$($p.provider_source_id)"]
-        $base = "$($p.api_base)"; if (-not $base -and $src) { $base = "$($src.api_base)" }
-        $hasKey = (HasValue $p.key) -or ($src -and (HasValue $src.key))
+        # 记忆模型（embedding）的地址、key、模型名字段名不一样：embedding_api_base / embedding_api_key / embedding_model；语音是 api_key。
+        # 以前只看 key，记忆和语音一律报 hasKey=false（10-28 群友的 Agent 照这个说「记忆的 key 是空的」）
+        $base = "$($p.api_base)"; if (-not $base) { $base = "$($p.embedding_api_base)" }; if (-not $base -and $src) { $base = "$($src.api_base)" }
+        $hasKey = (HasValue $p.key) -or (HasValue $p.api_key) -or (HasValue $p.embedding_api_key) -or ($src -and (HasValue $src.key))
         $host_ = ''; if ($base -match '^https?://([^/:]+)(:\d+)?') { $host_ = $Matches[1] + $Matches[2] }
-        $item = [ordered]@{ id = "$($p.id)"; type = "$($p.type)"; model = "$($p.model)"; host = $host_; enable = [bool]$p.enable; hasKey = [bool]$hasKey }
+        $mdl = "$($p.model)"; if (-not $mdl) { $mdl = "$($p.embedding_model)" }
+        $item = [ordered]@{ id = "$($p.id)"; type = "$($p.type)"; model = $mdl; host = $host_; enable = [bool]$p.enable; hasKey = [bool]$hasKey }
         $ptype = "$($p.provider_type)"; if (-not $ptype -and $src) { $ptype = "$($src.provider_type)" }
         if ($ptype -eq 'text_to_speech') { $tts += $item } elseif ($ptype -eq 'embedding') { $emb += $item } elseif ($ptype -eq 'chat_completion' -or -not $ptype) { $chat += $item }
     }
@@ -347,6 +379,13 @@ function Inspect-AstrBot([string]$dataRoot, [string]$kind, [string]$instDir) {
     $o.whitelistCount = @($cfg.platform_settings.id_whitelist | Where-Object { "$_".Trim() }).Count
     $o.adminCount = @($cfg.admins_id | Where-Object { "$_".Trim() }).Count
     $o.computerUse = "$($cfg.provider_settings.computer_use_runtime)"
+    # 是不是我们装的（第 1 步问法不一样）：默认人格的名字就写在这份配置里，不用登后台、不用翻数据库。
+    # 新版在 agent_runner.config.persona.persona_id，老版本在 provider_settings.default_personality；都没写就是 AstrBot 自带的 default。
+    # origin：dafeiyu 默认人格是大肥鱼（配置包的人格名），或者在本 Skill 的工作目录里、还没导人设；own 他自己起名的人格；stock 别处装的、用 AstrBot 自带的默认人格
+    $pn = "$($cfg.agent_runner.config.persona.persona_id)"; if (-not $pn) { $pn = "$($cfg.provider_settings.default_personality)" }; if (-not $pn) { $pn = 'default' }
+    $o.defaultPersona = (Mask $pn)
+    $o.bySkill = [bool]($instDir -and (Test-Path -LiteralPath (Join-Path (Split-Path $instDir) 'private\backend.txt')))
+    $o.origin = $(if ($pn -eq '大肥鱼') { 'dafeiyu' } elseif ($pn -ne 'default') { 'own' } elseif ($o.bySkill) { 'dafeiyu' } else { 'stock' })
     $plugDir = Join-Path $dataRoot 'plugins'
     $plugs = @(Get-ChildItem -LiteralPath $plugDir -Directory | ForEach-Object { $_.Name })
     $o.plugins = $plugs
@@ -362,6 +401,16 @@ function Inspect-AstrBot([string]$dataRoot, [string]$kind, [string]$instDir) {
     $o.videoPlugin = 'astrbot_plugin_dafeiyu_video' -in $plugs
     $lm = ReadJson (Join-Path $dataRoot 'config\astrbot_plugin_livingmemory_config.json')
     if ($lm) { $o.memoryEmbedding = "$($lm.provider_settings.embedding_provider_id)" }
+    # 记忆接得齐不齐（只看配置和 Ollama 的模型文件夹；插件开没开要 astr_setup.py status 看）。
+    # memoryProblem：''、no-provider（插件没指向记忆模型）、no-key（在线的没填 key）、no-local-model（本机 Ollama 里没有这个模型）
+    if ('astrbot_plugin_livingmemory' -in $plugs) {
+        $mp = $emb | Where-Object { $o.memoryEmbedding -and $_.id -eq $o.memoryEmbedding } | Select-Object -First 1
+        $o.memoryProblem = ''
+        if (-not $mp) { $o.memoryProblem = 'no-provider' }
+        elseif ($mp.host -match '^(127\.0\.0\.1|localhost)') {
+            if ($mp.host -match ':11434$' -and -not (OllamaHas $mp.model)) { $o.memoryProblem = 'no-local-model' }
+        } elseif (-not $mp.hasKey) { $o.memoryProblem = 'no-key' }
+    }
     if ($o.running) {
         $o.dashboardReachable = $false
         foreach ($p in $listen) {
@@ -505,11 +554,17 @@ $agents = [ordered]@{
     agentsSkills    = @(Get-ChildItem -LiteralPath "$env:USERPROFILE\.agents\skills" -Directory | ForEach-Object { $_.Name })
     workbuddySkills = @(Get-ChildItem -LiteralPath "$env:USERPROFILE\.workbuddy\skills" -Directory | ForEach-Object { $_.Name })
 }
+# DSH 的桌宠插件 dsh-pet：装了的话，装完可以问一句要不要让桌宠也变成她（references/桌宠.md）。没装的不主动推
+$dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { "$env:USERPROFILE\.dsh" }
+$petProfiles = @(Get-ChildItem -LiteralPath "$dshHome\profiles" -Directory -ErrorAction SilentlyContinue | Where-Object { (Test-Path "$($_.FullName)\node_modules\dsh-pet") -or ((Test-Path "$($_.FullName)\package.json") -and (Select-String -LiteralPath "$($_.FullName)\package.json" -Pattern '"dsh-pet"' -SimpleMatch -Quiet)) } | ForEach-Object { $_.Name })
+$agents.dshPet = [ordered]@{
+    installed = [bool]((Test-Path -LiteralPath "$dshHome\dsh-pet") -or $petProfiles.Count); profiles = $petProfiles
+    linked = [bool]($workDir -and (Test-Path "$workDir\private\pet-key.txt"))   # 已经让桌宠变成她了
+}
 
 # ---------- 8. 记忆、语音 ----------
 $ollama = [ordered]@{ installed = [bool]((Installed 'Ollama') -or (Test-Path "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe") -or ($workDir -and (Test-Path "$workDir\Ollama\ollama.exe"))); running = [bool]($ports.Contains('11434') -and $ports['11434'].mine); portBusyByOtherUser = [bool]($ports.Contains('11434') -and -not $ports['11434'].mine) }
-$models = $env:OLLAMA_MODELS; if (-not $models) { $models = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'User') }; if (-not $models) { $models = "$env:USERPROFILE\.ollama\models" }
-$ollama.bgeM3 = Test-Path -LiteralPath (Join-Path $models 'manifests\registry.ollama.ai\library\bge-m3')
+$ollama.bgeM3 = OllamaHas 'bge-m3'
 $breezeDirs = @($(if ($workDir) { Join-Path $workDir 'breeze-tts' }), "$env:SystemDrive\breeze-tts", 'D:\breeze-tts', 'E:\breeze-tts') | Where-Object { (Test-Path -LiteralPath (Join-Path $_ 'start-breeze.cmd')) -and -not (Excluded $_) }
 if ($ports.Contains('8137') -and $ports['8137'].mine -and $ports['8137'].path) { $bd = Split-Path $ports['8137'].path; while ($bd -and -not (Test-Path -LiteralPath (Join-Path $bd 'start-breeze.cmd'))) { $bd = Split-Path $bd }; if ($bd -and $bd -notin @($breezeDirs)) { $breezeDirs = @($breezeDirs) + $bd } }
 $breezeInfo = [ordered]@{ installed = [bool](@($breezeDirs).Count -or ($ports.Contains('8137') -and $ports['8137'].mine -and $ports['8137'].process -match 'breeze')); serverPath = $(if ($ports.Contains('8137')) { "$($ports['8137'].path)" } else { '' }); dirs = @($breezeDirs); running = [bool]($ports.Contains('8137') -and $ports['8137'].mine); autostart = Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) '启动Breeze语音.lnk') }
@@ -583,11 +638,16 @@ if ($machine.arch -eq 'ARM64') { $warnings.Add('这是 ARM 处理器的电脑（
 if ($machine.ramGB -and $machine.ramGB -lt 8) { $warnings.Add("内存只有 $($machine.ramGB) GB：本机语音和本机记忆别一起开") }
 if ($speed.tier -in 'slow', 'none') { $warnings.Add('连境外的网速慢（GitHub、hf-mirror 都不到 1 MB/s）：本机语音、本机记忆这种几个 GB 的先不建议，表情包要等很久') }
 if ($cmds['pythonIsStoreStub'] -and -not $cmds['python']) { $warnings.Add('python 命令是应用商店的空壳') }
+if ($launcherAstr | Where-Object { $_.hasConfig }) { if (-not $launcherAutostart) { $warnings.Add('启动器没开「开机自启动」：电脑重启后她不会自己上线（启动器最左边「高级」→「通用」，见 收尾-自启和掉线.md）') } }
 if ($launcherAstr.Count -gt 1) { $warnings.Add("有 $($launcherAstr.Count) 个 AstrBot 实例，动之前问清用哪个") }
 if (@($napBases).Count -gt 1) { $warnings.Add("找到 $(@($napBases).Count) 份 NapCat") }
+# 他在 answers.json 里选了「先不要记忆」（memory 0）的，导入工具会把记忆插件关掉，不算没接齐
+$memoryChoice = ''
+if ($workDir) { $ans = ReadJson "$workDir\answers.json"; if ($ans) { $memoryChoice = "$($ans.memory)" } }
 foreach ($a in $readyInst) {
     if ($a.computerUse -and $a.computerUse -ne 'none') { $warnings.Add("实例 $($a.dir) 开着「使用电脑能力」($($a.computerUse))") }
     if ($a.hasConfig -and -not $a.whitelistOn) { $warnings.Add("实例 $($a.dir) 没开白名单，谁都能使唤她") }
+    if ($a.memoryProblem -and $memoryChoice -ne '0') { $warnings.Add("实例 $($a.dir) 的记忆没接齐（$(@{ 'no-provider' = '插件没指向记忆模型'; 'no-key' = '记忆用在线的，但没填 key'; 'no-local-model' = '记忆用本机 Ollama，但模型没下' }[$a.memoryProblem])），她记不住事") }
     if ($a.packPluginsPresent -ge 4 -and $a.Contains('memeGroupFixed') -and -not $a.memeGroupFixed) { $warnings.Add("实例 $($a.dir) 的表情包还是旧设置，群里不发图") }
 }
 foreach ($p in $ports.Keys) { if (-not $ports[$p].mine) { $warnings.Add("端口 $p 被这台电脑上别的 Windows 账户的 $($ports[$p].process) 占着，装同类东西会抢端口") } }
@@ -607,7 +667,7 @@ $result = [ordered]@{
     desktopQQ = [ordered]@{ installed = [bool]((Installed '^(腾讯)?QQ$') -or $desktopQQExe); exe = "$desktopQQExe"; version = "$desktopQQVer"; running = $desktopQQRunning }
     workDir = $workDir; snowluma = $snowluma
     napcatQQRunning = $napcatQQRunning
-    launcher = $launcher; launcherDataDirs = $dataDirs; dataDirOverridden = $dataDirOverridden; components = $components
+    launcher = $launcher; launcherAutostart = $launcherAutostart; launcherDataDirs = $dataDirs; dataDirOverridden = $dataDirOverridden; components = $components
     astrbot = $astr; napcat = $napcat; ws6199Established = $established6199
     others = $others; docker = $docker; agents = $agents; ollama = $ollama; breeze = $breezeInfo
     vol04Leftovers = $leftovers; configPacks = $packs; ports = $ports
@@ -624,11 +684,12 @@ if ($machine.sandboxed) { "提醒：体检是在 AI 帮手的沙盒里跑的，�
 "工作目录：$(if ($workDir) { $workDir } else { '还没有（没用本 Skill 装过）' })"
 "SnowLuma：$(if ($snowluma) { "$($snowluma.version)，$(if ($snowluma.running) { '在跑' } else { '没在跑' })，认出 $($snowluma.accountsSeen) 个号，连 AstrBot 的 $($snowluma.wiredToAstrBot) 个" } else { '没装' })"
 "AstrBot：启动器$(if ($launcher) { " $($launcher.version) 装了" } else { '没装' })；实例 $($launcherAstr.Count) 个，别的装法 $(@($astr | Where-Object { $_.kind -eq 'manual' }).Count) 个；在跑 $(@($astr | Where-Object { $_.running }).Count) 个"
-foreach ($a in $astr) { "  - $($a.kind) $($a.dir)：版本 $($a.version)，$(if ($a.running) { '在跑' } else { '没在跑' })，DeepSeek $(if ($a.deepseekReady) { '接好了' } else { '没接' })，白名单 $($a.whitelistCount) 条，配置包插件 $($a.packPluginsPresent)/6" }
+foreach ($a in $astr) { "  - $($a.kind) $($a.dir)：版本 $($a.version)，$(if ($a.running) { '在跑' } else { '没在跑' })，$(if ($a.Contains('origin')) { "默认人格「$($a.defaultPersona)」（$(@{ dafeiyu = '我们装的大肥鱼'; own = '他自己配的'; stock = 'AstrBot 自带的，不是我们装的' }[$a.origin])），" })DeepSeek $(if ($a.deepseekReady) { '接好了' } else { '没接' })，白名单$(if ($a.whitelistOn) { '开着' } else { '关着' }) $($a.whitelistCount) 条，配置包插件 $($a.packPluginsPresent)/6$(if ($a.Contains('memoryProblem')) { "，记忆$(if ($a.memoryProblem) { "没接齐（$($a.memoryProblem)）" } else { "接的 $($a.memoryEmbedding)" })" })" }
+if ($launcher) { "  启动器开机自启动：$(if ($launcherAutostart) { '开着' } else { '没开' })" }
 "NapCat：找到 $(@($napcat).Count) 份" + $(if (@($napcat).Count) { '：' + (($napcat | ForEach-Object { "$($_.dir)（装完 $($_.installComplete)，登过 $($_.accounts.Count) 个号，在跑 $($_.running)）" }) -join '；') })
 "小号和 AstrBot 连没连着（6199）：$(if ($established6199) { '连着' } else { '没连着' })"
 "别的装法：" + $(if ($others.Count -or $docker.Count) { (@($others | ForEach-Object { "$($_.kind) $($_.dir)" }) + @($docker)) -join '；' } else { '没发现' })
-"AI 帮手：DSH $(if ($agents.dsh) { $agents.dsh.version } else { '没装' })，WorkBuddy $(if ($agents.workbuddy) { $agents.workbuddy.version } else { '没装' })"
+"AI 帮手：DSH $(if ($agents.dsh) { $agents.dsh.version } else { '没装' })$(if ($agents.dshPet.installed) { "（装了桌宠插件 dsh-pet$(if ($agents.dshPet.linked) { '，已经接成她了' } else { '，还没接成她' })）" })，WorkBuddy $(if ($agents.workbuddy) { $agents.workbuddy.version } else { '没装' })"
 "记忆：Ollama $(if ($ollama.installed) { '装了' } else { '没装' })，bge-m3 $(if ($ollama.bgeM3) { '有' } else { '没有' })；Breeze $(if ($breezeInfo.installed) { '装了' } else { '没装' })$(if ($breezeInfo.running) { '、在跑' })"
 "以前留下的文件夹：" + $(if ($leftovers.Count -or $packs.Count) { (@($leftovers | ForEach-Object { "$($_.dir)$(if ($_.byThisSkill) { '（本 Skill 的工作目录）' } else { '（照 Vol.04 视频建的）' })" }) + @($packs | ForEach-Object { "配置包 $($_.dir)" })) -join '；' } else { '没有' })
 "网络：" + $(if ($net.Count) { ($net.Keys | ForEach-Object { "$($_ -replace 'https://','') $(if ($net[$_].ok) { "$($net[$_].ms)ms" } else { '不通' })" }) -join '，' } else { '没测' }) + $(if ($netVia -eq 'tcp') { '（在沙盒里只测了能不能连上）' }) + "；系统代理 $(if ($proxy.ProxyEnable) { '开着' } else { '关着' })"

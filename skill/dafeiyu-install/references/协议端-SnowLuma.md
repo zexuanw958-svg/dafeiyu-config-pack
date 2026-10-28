@@ -1,6 +1,6 @@
 # 协议端 B：SnowLuma（Agent 全装）
 
-10-28 在干净账户上用脚本从下载装到连上 AstrBot（官方 v2.2.1，桌面 QQ 9.9.36-53644）。仓库 https://github.com/SnowLuma/SnowLuma ，文档 https://snowluma.github.io 。调研原文：`私密档案/调研-NapCat替代-SnowLuma-2026-10-27.md`。
+10-28 在干净账户上用脚本从下载装到连上 AstrBot（官方 v2.2.1，桌面 QQ 9.9.36-53644）。仓库 https://github.com/SnowLuma/SnowLuma ，文档 https://snowluma.github.io 。
 
 ## 它是什么、跟 NapCat 有什么不同
 

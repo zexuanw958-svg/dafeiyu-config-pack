@@ -1,0 +1,9 @@
+name: astrbot_plugin_dafeiyu_petlink
+display_name: 大肥鱼桌宠互通
+desc: 电脑桌宠和主人的 QQ 私聊互相带上对面最近几句，刚聊过、还没记进长期记忆的事两边也知道；在桌宠里定的提醒，到点发到主人的 QQ 私聊；桌宠那边不发语音
+help: 配合「大肥鱼桥」用（安装 Skill 的 setup-pet.ps1 会装好），装上不用设置
+version: v0.1.0
+author: zexuan604
+support_platforms:
+  - aiocqhttp
+  - webchat

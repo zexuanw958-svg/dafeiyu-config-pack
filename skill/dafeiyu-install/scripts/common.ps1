@@ -222,6 +222,13 @@ function Start-Detached([string]$Name, [string]$CmdFile) {
     Say "已启动 $Name（最小化窗口，别关）"
 }
 
+# Ollama 只起服务（ollama.exe serve），不开托盘程序 ollama app.exe：托盘程序每次启动都弹它自己的聊天窗口
+# （10-28 测试机：打游戏模式恢复、开机都会弹）。服务不出窗口，右下角也没有羊驼图标，状态看工作台
+function Start-OllamaServe([string]$OllamaExe) {
+    foreach ($n in 'OLLAMA_MODELS', 'OLLAMA_KEEP_ALIVE') { $v = [Environment]::GetEnvironmentVariable($n, 'User'); if ($v) { Set-Item "env:$n" $v } }
+    Start-Process conhost.exe -ArgumentList '--headless', "`"$OllamaExe`"", 'serve' -WorkingDirectory (Split-Path $OllamaExe) -WindowStyle Hidden
+}
+
 function Wait-Port([int]$Port, [int]$Seconds = 120, [string]$State = 'Listen') {
     $t0 = Get-Date
     while (((Get-Date) - $t0).TotalSeconds -lt $Seconds) {
@@ -251,6 +258,56 @@ function Find-AstrPython([string]$Dir) {
     }
     if ($cands) { return "$(@($cands)[0].FullName)\venv\Scripts\python.exe" }
     return ''
+}
+
+# AstrBot 的数据目录（cmd_config.json 所在）：命令行装的在工作目录里；启动器装的是端口对得上的那个实例的 core\data。找不到返回空
+function Find-AstrDataDir([string]$Dir) {
+    if (Test-Path "$Dir\astrbot\data\cmd_config.json") { return "$Dir\astrbot\data" }
+    $py = Find-AstrPython $Dir
+    if ($py -match '\\venv\\Scripts\\python\.exe$') {
+        $inst = Split-Path (Split-Path (Split-Path $py))
+        if (Test-Path "$inst\core\data\cmd_config.json") { return "$inst\core\data" }
+    }
+    return ''
+}
+
+# 记忆实际接成什么样（只读配置文件和本机 Ollama 的模型列表，不调后台）。插件开没开这里看不出来，要 astr_setup.py status 或工作台。
+# problem：''（该有的都有）、no-plugin、no-provider（插件没指向任何记忆模型）、no-key（在线的没填 key）、ollama-off、no-model（Ollama 里没这个模型）
+function Get-MemoryWiring([string]$DataDir) {
+    $r = [ordered]@{ plugin = $false; providerId = ''; local = $false; model = ''; hasKey = $false; problem = '' }
+    if (-not $DataDir) { return $r }
+    $r.plugin = Test-Path "$DataDir\plugins\astrbot_plugin_livingmemory"
+    if (-not $r.plugin) { $r.problem = 'no-plugin'; return $r }
+    $lc = $null; $cfg = $null
+    try { $lc = Get-Content -Raw -Encoding UTF8 "$DataDir\config\astrbot_plugin_livingmemory_config.json" | ConvertFrom-Json } catch {}
+    try { $cfg = Get-Content -Raw -Encoding UTF8 "$DataDir\cmd_config.json" | ConvertFrom-Json } catch {}
+    $r.providerId = "$($lc.provider_settings.embedding_provider_id)"
+    $p = @($cfg.provider) | Where-Object { $_ -and $r.providerId -and "$($_.id)" -eq $r.providerId } | Select-Object -First 1
+    if (-not $p) { $r.problem = 'no-provider'; return $r }
+    $base = "$($p.embedding_api_base)$($p.api_base)"
+    $r.local = $base -match '//(127\.0\.0\.1|localhost)[:/]'
+    $r.model = "$($p.embedding_model)$($p.model)"
+    $r.hasKey = [bool]("$($p.embedding_api_key)$($p.api_key)".Trim())
+    if ($r.local -and $base -match ':11434') {
+        $names = $null
+        try { $names = @((Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 4).models | ForEach-Object { "$($_.name)" }) } catch {}
+        if ($null -eq $names) { $r.problem = 'ollama-off' }
+        elseif (-not ($names | Where-Object { ($_ -split ':')[0] -eq ($r.model -split ':')[0] })) { $r.problem = 'no-model' }
+    } elseif (-not $r.local -and -not $r.hasKey) { $r.problem = 'no-key' }
+    return $r
+}
+
+# 启动器（AstrBot Launcher）里的「开机自启动」开没开。它用 Tauri 的 autostart 插件：开了就在 HKCU\...\Run 写一项（名字是 AstrBot Launcher，
+# 值是 "<启动器.exe>" --autostart）；在任务管理器「启动」页里关掉的，记在 StartupApproved\Run（第一个字节是单数＝关了）。
+# 只读。返回 $true / $false。「退出时保留实例运行状态」存在启动器自己的数据库里，读不到。
+function Get-LauncherAutostart {
+    $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
+    $name = $null
+    if ($run) { foreach ($pp in $run.PSObject.Properties) { if ($pp.Name -notmatch '^PS(Path|ParentPath|ChildName|Drive|Provider)$' -and "$($pp.Name) $($pp.Value)" -match '(?i)astrbot[ _-]?launcher') { $name = $pp.Name; break } } }
+    if (-not $name) { return $false }
+    $ap = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' -ErrorAction SilentlyContinue).$name
+    if ($ap -is [byte[]] -and $ap.Length -gt 0 -and ($ap[0] -band 1)) { return $false }
+    return $true
 }
 
 # 后台端口：backend.txt 的 url 里写的（启动器常另给端口），没有就 6185

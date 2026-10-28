@@ -39,10 +39,11 @@ if ($fresh -and -not [Environment]::GetEnvironmentVariable('OLLAMA_KEEP_ALIVE', 
     [Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', '-1', 'User'); $env:OLLAMA_KEEP_ALIVE = '-1'
 }
 
-# 起服务：用托盘程序（它会自己跑 serve），任务栏右下角会多一个羊驼图标
+# 起服务：只起 ollama.exe serve，不开托盘程序（它每次启动都弹聊天窗口，见 common.ps1 的 Start-OllamaServe）。
+# 安装包静默装完可能自己把托盘程序开起来了：这次新装的就把它关掉，换成不出窗口的服务
+if ($fresh) { Get-Process 'ollama app' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($home2, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue }
 if (-not (Get-NetTCPConnection -State Listen -LocalPort 11434 -ErrorAction SilentlyContinue)) {
-    $app = "$home2\ollama app.exe"
-    if (Test-Path $app) { Start-Process $app } else { Start-Process $exe -ArgumentList 'serve' -WindowStyle Hidden }
+    Start-OllamaServe $exe
     if (-not (Wait-Port 11434 60)) { throw 'Ollama 60 秒没起来：让他从开始菜单打开 Ollama' }
 }
 Say 'Ollama 在跑（127.0.0.1:11434）'

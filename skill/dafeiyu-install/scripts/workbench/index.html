@@ -1,8 +1,11 @@
 <!doctype html>
 <!--
-  大肥鱼工作台（正式版，按视觉方向 A「鱼缸」做）。
+  大肥鱼工作台（正式版，10-28 晚换成「大肥鱼」形象版：左边一张米白卡纸，头箍浪花边、光圈、页面画的小灯、她的三张状态图交叉淡入，头上一个话气泡；
+  右边菜单卡式的八项检查）。
   这页本身不含任何秘密：数据都从同一个本机小服务（server.py）的 /api/status 来，每 10 秒刷新；
   按钮调 /api/action/<名字>，长动作看 /api/job/<id> 的进度。打开它的网址带 #t=<token>，页面读走后马上从地址栏抹掉。
+  图和字体在同目录 assets\（server.py 只发这个文件夹里的 .webp、.woff2）；三张状态图的文件名只写在下面脚本的 FACES 里。
+  图和字体网址后面的 ?v= 由 server.py 发页面时填上工作台版本号，更新以后浏览器不会拿旧的图和字。
 -->
 <html lang="zh-CN">
 <head>
@@ -11,435 +14,390 @@
 <meta name="referrer" content="no-referrer">
 <title>大肥鱼工作台</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232B6FEA'/%3E%3Cpath d='M12 38c0-11 10-19 22-19 11 0 18 8 18 17 0 10-9 14-19 14-12 0-21-4-21-12Z' fill='%23fff'/%3E%3Cpath d='M14 40C8 38 6 31 8 25c-3 0-6-2-6-5 3-1 6 0 7 2 2-3 5-4 8-4-1 3-3 5-4 8 0 5 2 8 5 11Z' fill='%23fff'/%3E%3Ccircle cx='42' cy='33' r='2.6' fill='%2313213D'/%3E%3C/svg%3E">
+<link rel="preload" href="assets/serif-600.woff2?v=__WB_V__" as="font" type="font/woff2" crossorigin>
 <style>
+/* 衬线字只有思源宋体 600 一个字重（切过子集：GB2312 一级字 + 本页和 server.py 里出现的字），数字用 Georgia，正文用系统字体 */
+@font-face{font-family:"DFY Serif";src:url("assets/serif-600.woff2?v=__WB_V__") format("woff2");font-weight:600;font-display:block}
+
 :root{
-  --bg:#E9F0F7; --panel:#FFFFFF; --panel2:#F4F8FC; --ink:#10233F; --ink2:#4B5E79; --ink3:#8394AA; --line:#E0E8F1;
-  --brand:#2B6FEA; --brand2:#1C52BE; --brandSoft:#E7F0FF;
-  --ok:#11905A; --okSoft:#E2F5EB; --bad:#D63C44; --badSoft:#FDEBEC; --warn:#A86500; --warnSoft:#FFF3DB; --off:#7F8DA0; --offSoft:#EEF2F6;
-  --coral:#FF7C6B;
-  --surface:#FFFFFF; --say:#FFFFFF; --sayInk:#10233F; --glass:rgba(255,255,255,.88); --track:#E3EAF3; --hoverB:#CFE0F7; --hover2:#EAF1FA;
-  --noticeB:#F6DFAE; --noticeIc:#FFE6B3; --noticeT:#7A5A1C; --badB:#F3B8BB; --badG:#FFF6F6; --warnB:#F1D59B; --warnG:#FFFBF2; --qqG:#FFF8E9; --qqB:#F4DFAF; --blankB:#9DB6DA; --blankPh:#9AAAC0; --mask:#E3EAF4;
-  --toast:#13233D; --toastInk:#FFFFFF; --tankInk:#0E2D5C; --tankInk2:#2D5A96; --verBg:rgba(255,255,255,.55); --verInk:#1C4A8A; --tabOnInk:#FFFFFF; --scroll:#C6D3E3;
-  --water:linear-gradient(180deg,#D3ECFF 0%,#9BCFFF 34%,#559BF0 72%,#2D69D3 100%); --rays:.5; --sand1:#F4DFB6; --sand2:#EBCB92; --peb:#D7B57A;
-  --bubB:rgba(255,255,255,.75); --bubC:rgba(255,255,255,.7); --sayB:#1C52BE; --logsumOk:#0B5E3B; --logsumBad:#8E2329;
-  --r:18px; --r2:12px;
-  --sh:0 1px 2px rgba(16,35,63,.05),0 10px 30px -18px rgba(16,35,63,.25);
-  --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
-  --num:"Bahnschrift","DIN Alternate","Segoe UI Variable Display","Segoe UI","PingFang SC",sans-serif;
-  --mono:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  --paper:#F6F2E9; --card:#FFFDF8; --sunk:#EFEADF; --ink:#1C2552; --ink2:#4B5379; --ink3:#8D92AC; --line:rgba(28,37,82,.13); --line2:rgba(28,37,82,.22);
+  --blue:#2A6FE0; --blueSoft:#E6EEFC; --lav:#D8D2EC;
+  --ok:#2FA36B; --warn:#E0A12E; --bad:#DB4B45; --off:#B9BDCF;
+  --okInk:#1E7A4E; --warnInk:#94640F; --badInk:#B2332E;
+  --st:var(--ok); --stInk:var(--okInk);
+  --halo:.20; --grain:.5;
+  --scrim:rgba(28,37,82,.28); --pop:0 30px 80px -30px rgba(28,37,82,.45),0 2px 6px rgba(28,37,82,.08);
+  --logBg:#141C3B; --logInk:#D5D9EC;
+  --serif:"DFY Serif","Noto Serif SC","Songti SC","SimSun",serif;
+  --sans:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  --num:Georgia,"Times New Roman",serif;
+  --mono:"Cascadia Mono",Consolas,Menlo,monospace;
+  color-scheme:light;
 }
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0E1530; --card:#141C3B; --sunk:#0B1129; --ink:#EEF0F8; --ink2:#B4BAD6; --ink3:#7A81A3; --line:rgba(238,240,248,.10); --line2:rgba(238,240,248,.20);
+  --blue:#7FA8FF; --blueSoft:rgba(127,168,255,.12); --lav:#3A4370; --off:#5D6488;
+  --okInk:#6FD3A0; --warnInk:#F2C467; --badInk:#FF8A84;
+  --halo:.28; --grain:0;
+  --scrim:rgba(3,6,18,.55); --pop:0 30px 80px -30px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);
+  --logBg:#0B1129; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E1530; --card:#141C3B; --sunk:#0B1129; --ink:#EEF0F8; --ink2:#B4BAD6; --ink3:#7A81A3; --line:rgba(238,240,248,.10); --line2:rgba(238,240,248,.20);
+  --blue:#7FA8FF; --blueSoft:rgba(127,168,255,.12); --lav:#3A4370; --off:#5D6488;
+  --okInk:#6FD3A0; --warnInk:#F2C467; --badInk:#FF8A84;
+  --halo:.28; --grain:0;
+  --scrim:rgba(3,6,18,.55); --pop:0 30px 80px -30px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);
+  --logBg:#0B1129; color-scheme:dark}
+body[data-st="warn"]{--st:var(--warn);--stInk:var(--warnInk)}
+body[data-st="bad"]{--st:var(--bad);--stInk:var(--badInk)}
+body[data-st="idle"]{--st:var(--off);--stInk:var(--ink3)}
+
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 var(--font);-webkit-font-smoothing:antialiased;overflow:hidden;transition:background .3s,color .3s}
-button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:14px/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden;transition:background .5s,color .3s}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 a{color:inherit}
-.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.app{height:100vh;display:grid;grid-template-columns:clamp(290px,31vw,380px) 1fr;gap:16px;padding:16px;min-width:0}
-
-/* ---------- 鱼缸 ---------- */
-.tank{position:relative;border-radius:24px;overflow:hidden;min-height:0;isolation:isolate;background:#6FA8E8}
-.water{position:absolute;inset:0;z-index:-2;background:var(--water);transition:filter 1.4s ease}
-.tank.sick .water{filter:saturate(.55) brightness(.96) hue-rotate(-8deg)}
-.tank::before{content:"";position:absolute;inset:-20% -40% 30%;z-index:-1;opacity:var(--rays);
-  background:repeating-linear-gradient(104deg,rgba(255,255,255,.0) 0 26px,rgba(255,255,255,.35) 26px 40px,rgba(255,255,255,0) 40px 80px);
-  -webkit-mask:linear-gradient(180deg,#000 0%,transparent 75%);mask:linear-gradient(180deg,#000 0%,transparent 75%);
-  animation:rays 14s ease-in-out infinite alternate}
-@keyframes rays{to{transform:translateX(40px)}}
-.tank-top{position:absolute;z-index:1;top:18px;left:20px;right:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--tankInk)}
-.brand{font-weight:800;font-size:17px;letter-spacing:.5px;min-width:0}
-.brand small{display:block;font-weight:500;font-size:12px;color:var(--tankInk2);letter-spacing:0;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tank-top .ver{font:600 11px var(--num);background:var(--verBg);padding:3px 8px;border-radius:99px;color:var(--verInk);flex:none}
-.say{position:absolute;z-index:1;left:50%;top:74px;transform:translateX(-50%);width:calc(100% - 56px);max-width:290px;background:var(--say);color:var(--sayInk);
-  border-radius:16px;padding:10px 14px;font-size:13.5px;line-height:1.5;box-shadow:0 8px 24px -10px rgba(10,40,90,.35);text-align:center;transition:opacity .3s}
-.say::after{content:"";position:absolute;left:50%;bottom:-7px;width:14px;height:14px;background:var(--say);transform:translateX(-50%) rotate(45deg);border-radius:3px}
-.say b{color:var(--sayB)}
-.whale-wrap{position:absolute;z-index:1;left:50%;top:158px;width:min(262px,76%);transform:translateX(-50%);animation:bob 5.5s ease-in-out infinite}
-@keyframes bob{0%,100%{transform:translate(-50%,0) rotate(-1.5deg)}50%{transform:translate(-50%,-10px) rotate(1.5deg)}}
-.whale-wrap svg{width:100%;display:block;filter:drop-shadow(0 14px 14px rgba(10,40,100,.25))}
-.bub{position:absolute;bottom:-20px;border:1.5px solid var(--bubB);border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--bubC),rgba(255,255,255,.04) 60%);animation:rise linear infinite;z-index:0}
-@keyframes rise{from{transform:translateY(0)}to{transform:translateY(-760px)}}
-.floor{position:absolute;left:0;bottom:178px;width:100%;height:150px;z-index:0}
-.sand{position:absolute;left:0;right:0;bottom:0;height:179px;background:var(--sand2);z-index:0}
-.s1{fill:var(--sand1)}.s2{fill:var(--sand2)}.pb{fill:var(--peb)}
-.seaweed{transform-origin:50% 100%;animation:sway 4.5s ease-in-out infinite alternate}
-.seaweed.s2{animation-duration:5.6s;animation-delay:-2s}
-@keyframes sway{from{transform:rotate(-5deg)}to{transform:rotate(6deg)}}
-
-.status{position:absolute;left:14px;right:14px;bottom:14px;z-index:2;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  border-radius:18px;padding:16px 18px 16px;box-shadow:0 10px 30px -14px rgba(8,30,70,.45)}
-.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:3px 10px 3px 8px;border-radius:99px}
-.chip .ic{width:14px;height:14px;stroke-width:2.4}
-.chip.ok{background:var(--okSoft);color:var(--ok)} .chip.warn{background:var(--warnSoft);color:var(--warn)} .chip.bad{background:var(--badSoft);color:var(--bad)} .chip.off,.chip.busy{background:var(--offSoft);color:var(--off)}
-.chip.busy{color:var(--brand);background:var(--brandSoft)}
-.status h1{font-size:23px;line-height:1.25;margin:9px 0 4px;letter-spacing:.3px}
-.status p{margin:0;color:var(--ink2);font-size:13.5px}
-.status .acts{display:flex;gap:8px;margin-top:13px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 15px;border-radius:11px;font-weight:600;font-size:13.5px;transition:background .15s,transform .1s,box-shadow .15s;white-space:nowrap;text-decoration:none}
-.btn:active{transform:translateY(1px)}
-.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 14px -6px rgba(43,111,234,.7)}
-.btn.primary:hover{background:var(--brand2)}
-.btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
-.btn.ghost:hover{background:var(--hover2)}
-.btn.danger{background:var(--bad);color:#fff;box-shadow:0 6px 14px -6px rgba(214,60,68,.6)}
-.btn.sm{height:30px;padding:0 11px;font-size:12.5px;border-radius:9px}
-.btn.grow{flex:1}
-.btn[disabled]{opacity:.6;cursor:default}
-.progress{display:none;margin-top:12px}
-.progress.on{display:block}
-.progress .bar{height:6px;border-radius:9px;background:var(--track);overflow:hidden}
-.progress .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4F94FF,#2B6FEA);border-radius:9px;transition:width .5s ease}
-.progress .step{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--ink2);margin-top:6px}
-.progress .step .pct{font-family:var(--num);flex:none}
+.ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
-/* ---------- 右侧 ---------- */
-.main{display:flex;flex-direction:column;min-width:0;min-height:0}
-.topbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;min-width:0}
-.tabs{display:flex;gap:2px;background:var(--surface);border-radius:14px;padding:4px;box-shadow:var(--sh);min-width:0;overflow:hidden}
-.tab{position:relative;height:32px;padding:0 12px;border-radius:10px;font-weight:600;color:var(--ink2);font-size:13.5px;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:background .15s,color .15s}
-.tab:hover{color:var(--ink);background:var(--panel2)}
-.tab.on{background:var(--ink);color:var(--tabOnInk)}
-.tab .n{font:700 11px var(--num);min-width:17px;height:17px;border-radius:9px;background:var(--coral);color:#fff;display:inline-grid;place-items:center;padding:0 4px}
-.checked{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12.5px;white-space:nowrap;min-width:0;overflow:hidden}
-.checked.down{color:var(--bad)}
-.pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(17,144,90,.5);animation:pulse 2.4s infinite;flex:none}
-.checked.down .pulse{background:var(--bad);animation:none}
-@keyframes pulse{70%{box-shadow:0 0 0 7px rgba(17,144,90,0)}100%{box-shadow:0 0 0 0 rgba(17,144,90,0)}}
-.iconbtn{width:34px;height:34px;border-radius:11px;background:var(--surface);display:grid;place-items:center;box-shadow:var(--sh);color:var(--ink2);flex:none}
-.iconbtn:hover{color:var(--brand)}
+/* ========== 整个窗口 ========== */
+.win{height:100vh;display:grid;grid-template-columns:352px minmax(0,1fr);overflow:hidden;position:relative}
+/* 纸纹：极淡的纤维噪点，只在浅色里看得出来 */
+.win::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:var(--grain);mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .11  0 0 0 0 .14  0 0 0 0 .32  0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* ========== 左：她 ========== */
+.side{position:relative;padding:22px 22px 22px 26px;display:flex;flex-direction:column;min-height:0;min-width:0}
+.brand{display:flex;align-items:baseline;gap:10px;color:var(--ink);position:relative;z-index:2;min-width:0}
+.brand b{font:600 17px/1 var(--serif);letter-spacing:.06em;flex:none}
+.brand small{font:italic 12px var(--num);color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+.portrait{position:relative;margin-top:40px;flex:1;min-height:0;background:var(--card);border:1.3px solid var(--line2);border-top:0;border-radius:0 0 22px 22px;transition:background .5s}
+.lace{position:absolute;left:-1.3px;top:-15px;width:calc(100% + 2.6px);height:16px;display:block}
+.lace path.fill{fill:var(--card);transition:fill .5s}
+.lace path.edge{fill:none;stroke:var(--line2);stroke-width:1.3}
+.lace circle{fill:var(--lav)}
+.halo{position:absolute;left:50%;top:44%;width:300px;height:300px;translate:-50% -50%;border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--st) calc(var(--halo)*100%),transparent) 0%,transparent 64%);transition:background .7s}
+.ring{position:absolute;left:50%;top:44%;border-radius:50%;translate:-50% -50%;border:1px solid color-mix(in srgb,var(--st) 26%,transparent);transition:border-color .7s}
+.ring.r1{width:236px;height:236px}.ring.r2{width:300px;height:300px;border-style:dashed;border-color:color-mix(in srgb,var(--st) 16%,transparent)}
+.girl{position:absolute;left:50%;bottom:6px;height:84%;max-width:calc(100% - 8px);aspect-ratio:640/719;translate:-50% 0;animation:float 5.5s ease-in-out infinite}
+body[data-face="bad"] .girl{animation-duration:8s}
+.girl img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .45s ease;filter:drop-shadow(0 10px 14px rgba(28,37,82,.16))}
+.girl[data-show="ok"] img.ok,.girl[data-show="warn"] img.warn,.girl[data-show="bad"] img.bad{opacity:1}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* 小灯由页面来画，跟着状态亮 */
+.lamp{position:absolute;left:30px;top:30px;width:22px;height:22px;transition:left .4s,top .4s,scale .4s}
+.lamp i{position:absolute;inset:0;border-radius:50%;border:1.6px solid var(--ink);
+  background:radial-gradient(circle at 34% 30%,#fff 0 14%,color-mix(in srgb,var(--st) 70%,#fff) 26%,var(--st) 58%,color-mix(in srgb,var(--st) 70%,#000) 100%);transition:background .6s}
+.lamp b{position:absolute;width:2.4px;height:7px;border-radius:2px;background:var(--st);transition:background .6s}
+.lamp b:nth-of-type(1){left:-9px;top:8px;rotate:90deg}.lamp b:nth-of-type(2){left:-4px;top:-8px;rotate:-40deg}.lamp b:nth-of-type(3){left:11px;top:-12px;rotate:8deg}
+body[data-st="warn"] .lamp i,body[data-st="bad"] .lamp i{animation:blink 2.4s ease-in-out infinite}
+@keyframes blink{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--st) 45%,transparent)}50%{box-shadow:0 0 0 7px transparent}}
+.say{position:absolute;right:14px;top:22px;max-width:236px;width:max-content;background:var(--card);border:1.3px solid var(--ink);border-radius:14px;padding:7px 11px;font-size:12.5px;line-height:1.45;color:var(--ink);text-wrap:balance;transition:opacity .3s}
+.say::after{content:"";position:absolute;left:18px;bottom:-7px;width:11px;height:11px;background:var(--card);border-right:1.3px solid var(--ink);border-bottom:1.3px solid var(--ink);rotate:35deg;border-radius:0 0 3px 0}
+.say:empty{opacity:0}
+.say b{font-weight:600;color:var(--blue)}
+/* 三张图都没有（文件缺了、没随包发）：卡上只留光圈、小灯和气泡，小灯挪到光圈正中当主角 */
+.portrait.noimg .girl{display:none}
+.portrait.noimg .lamp{left:calc(50% - 11px);top:calc(44% - 11px);scale:2.4}
+.portrait.noimg .say{right:auto;left:50%;translate:-50% 0;top:calc(44% - 108px)}
+.portrait.noimg .say::after{left:calc(50% - 6px)}
+
+.status{margin-top:22px;padding:0 4px;position:relative;min-height:196px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--stInk);transition:color .5s}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;background:radial-gradient(circle at 35% 30%,#fff 0 12%,var(--st) 45%);box-shadow:0 0 0 1.2px color-mix(in srgb,var(--ink) 70%,transparent);transition:background .5s}
+.status h1{font:600 30px/1.25 var(--serif);margin:6px 0 6px;letter-spacing:.02em}
+.status p{margin:0;color:var(--ink2);font-size:13.5px;line-height:1.7;min-height:46px}
+.acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;min-height:38px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 18px;border-radius:999px;font-size:13.5px;font-weight:600;letter-spacing:.02em;white-space:nowrap;text-decoration:none;transition:transform .15s,background .2s,color .2s,box-shadow .2s,border-color .2s}
+.btn .ic{width:16px;height:16px}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn.primary:hover{transform:translateY(-1px);box-shadow:0 8px 18px -10px var(--ink)}
+.btn.ghost{border:1.3px solid var(--line2);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn.sm{height:30px;padding:0 13px;font-size:12.5px}
+.btn.sm .ic{width:14px;height:14px}
+.btn[disabled]{opacity:.55;cursor:default;transform:none;box-shadow:none}
+.progress{display:none;margin-top:12px}
+.progress.on{display:block}
+.progress .bar{height:5px;border-radius:5px;background:var(--line);overflow:hidden}
+.progress .bar i{display:block;height:100%;width:0;background:var(--blue);border-radius:5px;transition:width .5s ease}
+.progress .step{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink2);margin-top:6px}
+.progress .step .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.progress .step .pct{font:italic 12.5px var(--num);flex:none}
+
+/* ========== 右 ========== */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;padding:18px 26px 0 8px}
+.top{display:flex;align-items:center;gap:14px;height:44px;border-bottom:1px solid var(--line);flex:none;min-width:0}
+.tabs{display:flex;gap:2px;flex:1;height:100%;margin-left:-12px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{position:relative;padding:0 12px;height:100%;font-size:14px;color:var(--ink3);white-space:nowrap;transition:color .2s}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;border-radius:2px;background:var(--ink)}
+.tab .n{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;margin-left:4px;border-radius:8px;background:var(--blue);color:#fff;font:600 10.5px/1 var(--sans);vertical-align:2px}
+.ago{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink3);white-space:nowrap}
+.ago .dot{width:7px;height:7px}
+.ago.down{color:var(--badInk)} .ago.down .dot{--st:var(--bad)}
+.iconbtn{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:var(--ink2);flex:none}
+.iconbtn:hover{background:var(--sunk);color:var(--ink)}
 .iconbtn.spinonce .ic{animation:spin .8s ease}
-.pages{flex:1;min-height:0;position:relative}
-.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:2px 4px 18px 2px;display:none;scrollbar-width:thin;scrollbar-color:var(--scroll) transparent;-webkit-mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent)}
-.page.on{display:block;animation:fade .28s ease}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.card{background:var(--panel);border-radius:var(--r);box-shadow:var(--sh)}
-.sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:11px 2px 7px}
-.sec h2{font-size:14.5px;margin:0}
-.sec small{color:var(--ink3);font-size:12px}
-.legend{display:flex;gap:12px;color:var(--ink3);font-size:12px}
-.legend span{display:inline-flex;align-items:center;gap:4px}
-.legend .ic{width:13px;height:13px;stroke-width:2.4}
 
-.today{display:grid;grid-template-columns:repeat(var(--n,4),1fr);padding:10px 6px}
-.today div{padding:0 14px;border-left:1px solid var(--line);min-width:0}
-.today div:first-child{border:0}
-.today b{display:block;font:600 23px/1.15 var(--num);letter-spacing:.3px}
-.today b small{font:500 13px var(--font);color:var(--ink2);margin-left:2px}
-.today span{font-size:12px;color:var(--ink3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.today .snack{color:var(--coral)}
+.pages{flex:1;min-height:0;overflow:auto;padding:22px 2px 26px 0;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.page{display:none}
+.page.on{display:block;animation:rise .35s ease both}
+#p-st.on{display:flex;flex-direction:column;min-height:100%}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-.notice{display:flex;align-items:center;gap:12px;padding:9px 12px;margin-top:10px;border-radius:var(--r);background:var(--warnSoft);border:1px solid var(--noticeB)}
-.notice .bad-ic{width:34px;height:34px;border-radius:10px;background:var(--noticeIc);color:var(--warn);display:grid;place-items:center;flex:none}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:6px}
+.head h2{font:600 19px/1.2 var(--serif);margin:0;letter-spacing:.04em}
+.head small{color:var(--ink3);font-size:12.5px}
+.tally{font:italic 34px/1 var(--num);color:var(--ink);letter-spacing:.01em;white-space:nowrap}
+.tally span{font:13px var(--sans);color:var(--ink3);font-style:normal;margin-left:6px}
+.today{display:flex;flex-wrap:wrap;gap:8px 26px;padding:14px 0 16px;margin-bottom:6px;border-bottom:1px solid var(--line);color:var(--ink2);font-size:12.5px}
+.today div{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+.today b{font:italic 22px/1.1 var(--num);color:var(--ink)}
+.today b small{font:12px var(--sans);color:var(--ink3);margin-left:3px}
+.today .note{color:var(--ink3)}
+.notice{display:flex;align-items:center;gap:12px;padding:11px 14px;margin:8px 0 4px;border-radius:14px;border:1.3px solid color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 9%,var(--card))}
+.notice > .ic{color:var(--warnInk);width:20px;height:20px}
 .notice b{display:block;font-size:13.5px}
-.notice span{font-size:12.5px;color:var(--noticeT)}
-.notice .btn{margin-left:auto}
+.notice span{font-size:12.5px;color:var(--ink2)}
+.notice .btn{margin-left:auto;flex:none}
 
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.item{background:var(--panel);border-radius:16px;box-shadow:var(--sh);padding:11px 13px;display:grid;grid-template-columns:38px 1fr auto;gap:1px 11px;align-items:start;align-content:start;border:1.5px solid transparent;transition:border-color .4s,background .4s}
-.item .ico{grid-row:span 2;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--brandSoft);color:var(--brand)}
-.item .ico .ic{width:19px;height:19px}
-.item .nm{font-weight:700;font-size:13.5px;line-height:1.35;min-width:0;align-self:center}
-.item .dt{grid-column:2 / 4;font-size:12.5px;color:var(--ink2);line-height:1.45}
-.item .dt .what{color:var(--ink3)}
-.item .lk{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
-.lk a,.lk button{color:var(--brand);font-weight:600;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:3px;cursor:pointer}
-.lk a:hover,.lk button:hover{text-decoration:underline}
-.lk .ic{width:13px;height:13px}
-.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:2px 8px 2px 6px;border-radius:99px;white-space:nowrap}
-.pill .ic{width:13px;height:13px;stroke-width:2.6}
-.pill.ok{color:var(--ok);background:var(--okSoft)} .pill.bad{color:var(--bad);background:var(--badSoft)} .pill.off,.pill.unk{color:var(--off);background:var(--offSoft)} .pill.warn{color:var(--warn);background:var(--warnSoft)} .pill.busy{color:var(--brand);background:var(--brandSoft)}
-.item.bad{border-color:var(--badB);background:linear-gradient(90deg,var(--badG),var(--panel) 60%)}
-.item.bad .ico{background:var(--badSoft);color:var(--bad)}
-.item.warn{border-color:var(--warnB);background:linear-gradient(90deg,var(--warnG),var(--panel) 60%)}
-.item.warn .ico{background:var(--warnSoft);color:var(--warn)}
-.item.off .ico,.item.unk .ico{background:var(--offSoft);color:var(--off)}
-.item.wide{grid-column:1 / -1;grid-template-columns:38px 1fr auto auto}
-.item.wide .dt,.item.wide .lk,.item.wide .iprog{grid-column:2 / 3}
-.item.wide .fixbox{grid-row:1 / 3;grid-column:4;align-self:center}
-.item.wide .pill{grid-column:3;grid-row:1}
-.item .iprog{grid-column:2 / 4;margin-top:6px}
+/* 菜单卡：名字 ……… 状态 */
+.menu{display:grid;grid-template-columns:1fr 1fr;column-gap:34px}
+.row{padding:15px 0 14px;border-bottom:1px solid var(--line);position:relative;min-width:0}
+.row .l{display:flex;align-items:baseline;gap:10px}
+.row .dot{align-self:center}
+.row .nm{font-weight:600;font-size:14px;white-space:nowrap}
+.row .nm em{font-style:normal;font-weight:400;color:var(--ink3);font-size:12.5px;margin-left:5px}
+.row .lead{flex:1;border-bottom:1.5px dotted var(--line2);translate:0 -4px;min-width:18px}
+.row .v{font-size:13px;color:var(--ink2);white-space:nowrap}
+.row .d{margin:3px 0 0 19px;font-size:12px;color:var(--ink3);line-height:1.55}
+.row[data-s="warn"] .dot{--st:var(--warn)} .row[data-s="bad"] .dot{--st:var(--bad)} .row[data-s="ok"] .dot{--st:var(--ok)} .row[data-s="off"] .dot,.row[data-s="unk"] .dot{--st:var(--off)}
+.row[data-s="busy"] .dot{--st:var(--blue);animation:blink 2.4s ease-in-out infinite}
+.row[data-s="warn"] .v{color:var(--warnInk)} .row[data-s="bad"] .v{color:var(--badInk)} .row[data-s="busy"] .v{color:var(--blue)} .row[data-s="off"] .v,.row[data-s="unk"] .v{color:var(--ink3)}
+.row .lk{margin:8px 0 0 19px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.fix{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink);border-bottom:1.3px solid var(--ink);padding-bottom:1px;line-height:1.5}
+.fix .ic{width:14px;height:14px}
+.lk a,.lk .lkb{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--ink2);text-decoration:none;border-bottom:1px solid var(--line2);line-height:1.5}
+.lk a:hover,.lk .lkb:hover{color:var(--ink);border-color:var(--ink)}
+.lk .ic{width:12px;height:12px}
+.iprog{margin:8px 0 0 19px;height:4px;border-radius:4px;background:var(--line);overflow:hidden}
+.iprog i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.foot{margin-top:auto;padding-top:18px;font-size:12px;color:var(--ink3);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foot a,.linkbtn{color:var(--ink2);text-decoration:none;border-bottom:1px solid var(--line2);font-size:12px}
+.foot a:hover,.linkbtn:hover{color:var(--ink);border-color:var(--ink)}
+.linkbtn[disabled]{opacity:.5;cursor:default}
+/* 进场：卡纸、她、文字依次出来（八项只在第一次画出来时动一下） */
+.portrait,.status,.top,.pages{animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+.status{animation-delay:.12s}.top{animation-delay:.18s}.pages{animation-delay:.26s}
+.menu.intro .row{animation:rise .5s ease both}
+.menu.intro .row:nth-child(1){animation-delay:.30s}.menu.intro .row:nth-child(2){animation-delay:.34s}.menu.intro .row:nth-child(3){animation-delay:.38s}.menu.intro .row:nth-child(4){animation-delay:.42s}
+.menu.intro .row:nth-child(5){animation-delay:.46s}.menu.intro .row:nth-child(6){animation-delay:.50s}.menu.intro .row:nth-child(7){animation-delay:.54s}.menu.intro .row:nth-child(8){animation-delay:.58s}
 
 /* 一键操作 */
-.acts3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.act{background:var(--panel);border-radius:16px;box-shadow:var(--sh);padding:14px;text-align:left;display:flex;flex-direction:column;gap:3px;transition:transform .15s,box-shadow .15s;border:1.5px solid transparent;min-height:112px;text-decoration:none;color:inherit}
-.act:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(16,35,63,.05),0 16px 30px -18px rgba(16,35,63,.35);border-color:var(--hoverB)}
-.act[disabled]{opacity:.55;transform:none;cursor:default}
-.act .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;margin-bottom:6px;background:var(--brandSoft);color:var(--brand)}
-.act .ico.c2{background:#E5F7F1;color:#0F8A69}.act .ico.c3{background:#FFF0E6;color:#C8571E}.act .ico.c4{background:#F1ECFF;color:#6C4BD8}.act .ico.c5{background:#FFEFF2;color:#C83B5D}
-.act b{font-size:14px;display:flex;align-items:center}
-.act span{font-size:12.3px;color:var(--ink2);line-height:1.45}
-.act .ext{margin-left:4px;color:var(--ink3);width:13px;height:13px}
-.pathbar{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-top:12px;font-size:12.8px;color:var(--ink2)}
-.pathbar > span{min-width:0}
-code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);padding:2px 7px;border-radius:6px;border:1px solid var(--line);word-break:break-all}
-.pathbar .btn{margin-left:auto;flex:none}
+.ops{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.op{display:block;border:1.3px solid var(--line);border-radius:16px;padding:16px 16px 15px;text-align:left;background:var(--card);text-decoration:none;color:inherit;transition:border-color .2s,transform .2s}
+.op:hover{border-color:var(--ink);transform:translateY(-2px)}
+.op[disabled]{opacity:.5;cursor:default;transform:none;border-color:var(--line)}
+.op > .ic{width:22px;height:22px;color:var(--ink)}
+.op b{display:block;margin-top:12px;font:600 15px/1.3 var(--serif);letter-spacing:.03em}
+.op b .ext{width:13px;height:13px;margin-left:5px;color:var(--ink3);vertical-align:-1px}
+.op small{display:block;margin-top:4px;color:var(--ink3);font-size:12px;line-height:1.55}
+.op.game{grid-column:1 / -1;display:flex;align-items:center;gap:16px;background:var(--sunk);border-color:transparent}
+.op.game:hover{transform:none;border-color:transparent}
+.op.game b{margin:0}
+.op.game .grow{flex:1;min-width:0}
+.switch{width:44px;height:24px;border-radius:12px;background:var(--line2);position:relative;flex:none;transition:background .2s}
+.switch::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s}
+.switch.on{background:var(--ink)} .switch.on::after{left:23px}
+.path{margin-top:18px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink2)}
+.path > span{min-width:0}
+.path .btn{margin-left:auto;flex:none}
+code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:6px;color:var(--ink);word-break:break-all}
 
 /* 功能和补装 */
-.inst{padding:14px 16px}
-.inst h3{margin:0 0 8px;font-size:14.5px;display:flex;align-items:center;gap:8px}
-.inst h3 .ic{color:var(--brand)}
-.inst dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12.8px}
-.inst dt{color:var(--ink3);white-space:nowrap}
-.inst dd{margin:0;color:var(--ink2);display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;min-width:0}
-.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:1px 8px 1px 6px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
-.tag .ic{width:12px;height:12px;stroke-width:2.6}
-.tag.ok .ic{color:var(--ok)} .tag.bad .ic{color:var(--bad)} .tag.warn .ic{color:var(--warn)} .tag.off .ic,.tag.unk .ic{color:var(--off)}
-.rows{padding:4px 0}
-.row{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:6px 12px;padding:10px 16px;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}
-.row .ico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--panel2);color:var(--ink2)}
-.row b{font-size:13.5px;display:block}
-.row .sub{font-size:12.3px;color:var(--ink2)}
-.row .lk{margin:3px 0 0}
-.row .rbtn{display:flex;gap:6px;align-items:center}
-.row .rprog{grid-column:2 / 4}
-.row .res{font-size:12px;color:var(--ink3);margin-top:2px}
-.seg{display:inline-flex;flex-wrap:wrap;gap:2px;margin-top:6px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:2px}
-.seg button{height:26px;padding:0 10px;border-radius:8px;font-weight:600;font-size:12.3px;color:var(--ink2)}
+.feat{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.feat b{font-weight:600}
+.feat small{display:block;color:var(--ink3);font-size:12px;margin-top:2px;line-height:1.6}
+.feat .lk{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px}
+.feat .rbtn{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.feat .res{font-size:12px;color:var(--ink3);margin-top:4px}
+.feat .res.ok{color:var(--okInk)} .feat .res.bad{color:var(--badInk)}
+.feat .progress{margin-top:8px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1.3px solid var(--line2);border-radius:999px;padding:2px}
+.seg button{height:26px;padding:0 12px;border-radius:999px;font-size:12.5px;color:var(--ink2)}
 .seg button:hover{color:var(--ink)}
-.seg button.on{background:var(--ink);color:var(--tabOnInk)}
-.row .res.bad{color:var(--bad)} .row .res.ok{color:var(--ok)}
-.chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
-.chips a{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600;font-size:12.8px;cursor:pointer}
-.chips a:hover{border-color:var(--hoverB);color:var(--brand)}
-.chips .ic{width:13px;height:13px;color:var(--ink3)}
+.seg button.on{background:var(--ink);color:var(--paper);font-weight:600}
+.feat .seg{margin-top:8px}
+.tag{font-size:12px;color:var(--ink3);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink3);white-space:nowrap}
+.pill .ic{width:13px;height:13px}
+.pill.ok{color:var(--okInk)} .pill.bad{color:var(--badInk)} .pill.warn{color:var(--warnInk)} .pill.busy{color:var(--blue)}
+.sub{margin:22px 0 2px;font:600 15px var(--serif);letter-spacing:.04em;display:flex;align-items:baseline;gap:10px}
+.sub small{font:12px var(--sans);color:var(--ink3);letter-spacing:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.inst dl{margin:10px 0 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 16px;font-size:12.8px}
+.inst dt{color:var(--ink3);white-space:nowrap}
+.inst dd{margin:0;color:var(--ink2);display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;min-width:0}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);border:1px solid var(--line2);border-radius:999px;padding:1px 10px 1px 8px}
+.chk .dot{width:7px;height:7px}
+.chk[data-s="ok"] .dot{--st:var(--ok)} .chk[data-s="warn"] .dot{--st:var(--warn)} .chk[data-s="bad"] .dot{--st:var(--bad)} .chk[data-s="busy"] .dot{--st:var(--blue)} .chk[data-s="off"] .dot,.chk[data-s="unk"] .dot{--st:var(--off)}
+.chk .ic{width:12px;height:12px;color:var(--ink3)}
 
 /* 更新 */
-.upd{display:grid;grid-template-columns:40px 1fr auto;gap:4px 12px;align-items:center;padding:14px 16px}
-.upd + .upd{border-top:1px solid var(--line)}
-.upd .ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--brandSoft);color:var(--brand);grid-row:span 2}
-.upd b{font-size:13.5px}
-.upd .ver{font:600 12px var(--num);color:var(--ink3);margin-left:6px}
-.upd .ver i{font-style:normal;color:var(--brand)}
-.upd span.d{font-size:12.5px;color:var(--ink2);grid-column:2}
-.upd .side{grid-row:1 / 3;grid-column:3}
-.qqwarn{padding:16px 16px 14px;background:linear-gradient(180deg,var(--qqG),var(--panel) 70%);border:1px solid var(--qqB);margin-bottom:4px}
-.qqwarn h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
-.qqwarn h3 .ic{color:var(--warn)}
-.qqwarn p{margin:0 0 10px;color:var(--ink2);font-size:13px}
-.opts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.opt{border:1.5px solid var(--line);border-radius:13px;padding:10px 11px;background:var(--surface);text-align:left;display:flex;flex-direction:column;gap:3px;transition:border-color .15s}
-.opt:hover{border-color:var(--hoverB)}
-.opt b{font-size:13px;display:flex;align-items:center;gap:6px}
-.opt span{font-size:12px;color:var(--ink2);line-height:1.45}
-.opt .tagok{font-size:11px;font-weight:700;color:var(--ok);background:var(--okSoft);padding:0 6px;border-radius:6px}
-.opt .go{margin-top:auto;padding-top:6px;color:var(--brand);font-weight:700;font-size:12.5px}
-.upfoot{display:flex;align-items:center;gap:10px;color:var(--ink3);font-size:12.5px;margin:10px 4px 0}
-.upfoot .btn{margin-left:auto}
+.upd{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:18px;padding:15px 0;border-bottom:1px solid var(--line)}
+.upd .d{display:block;color:var(--ink3);font-size:12px;margin-top:2px;line-height:1.6}
+.upd .ver{font:italic 15px var(--num);color:var(--ink2);white-space:nowrap}
+.upd .ver b{color:var(--blue);font-weight:400}
+.notes{margin:4px 0 0;padding-left:16px;color:var(--ink3);font-size:12px}
+.qqwarn{border:1.3px solid color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 8%,var(--card));border-radius:16px;padding:16px 18px;margin-bottom:20px}
+.qqwarn h3{margin:0 0 4px;font:600 15px/1.4 var(--serif);letter-spacing:.03em;display:flex;align-items:center;gap:8px}
+.qqwarn h3 .ic{color:var(--warnInk)}
+.qqwarn p{margin:0 0 12px;color:var(--ink2);font-size:13px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{border:1.3px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card);text-align:left;display:flex;flex-direction:column;gap:3px;transition:border-color .2s}
+.opt:hover{border-color:var(--ink)}
+.opt b{font-size:13.5px;display:flex;align-items:center;gap:6px}
+.opt span{font-size:12px;color:var(--ink2);line-height:1.55}
+.opt .tagok{font-size:11px;font-weight:600;color:var(--okInk);border:1px solid currentColor;padding:0 6px;border-radius:999px;line-height:1.5}
+.opt .go{margin-top:auto;padding-top:6px;font-weight:600;font-size:12.5px;color:var(--ink)}
 
 /* 交给 Agent */
-.lead{color:var(--ink2);font-size:13px;margin:2px 2px 12px}
-.lead b{color:var(--ink)}
-.ask{background:var(--panel);border-radius:16px;box-shadow:var(--sh);padding:13px 14px;display:flex;flex-direction:column;gap:6px}
-.ask header{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px}
-.ask header .ic{color:#6C4BD8}
-.ask p{margin:0;font-size:13px;color:var(--ink2);line-height:1.6;flex:1}
-.blank{display:inline-block;min-width:3.2em;padding:0 4px;border-bottom:1.5px dashed var(--blankB);color:var(--brand2);outline:none;border-radius:3px}
-.blank:focus{background:var(--brandSoft);border-bottom-style:solid}
-.blank:empty::before{content:attr(data-ph);color:var(--blankPh)}
-.ask footer{display:flex;justify-content:flex-end}
+.lead2{margin:0 0 16px;color:var(--ink2);font-size:13px;line-height:1.75}
+.lead2 b{color:var(--ink)}
+.asks{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ask{border:1.3px solid var(--line);border-radius:16px;padding:14px 16px;background:var(--card);display:flex;flex-direction:column;align-items:flex-start}
+.ask b{font:600 14.5px var(--serif);letter-spacing:.03em}
+.ask p{margin:8px 0 12px;font-size:12.5px;color:var(--ink2);line-height:1.7;flex:1}
+.blank{display:inline-block;min-width:64px;border-bottom:1.5px dashed var(--blue);color:var(--blue);padding:0 3px;outline:none}
+.blank:focus{background:var(--blueSoft);border-bottom-style:solid}
+.blank:empty::before{content:attr(data-ph);color:color-mix(in srgb,var(--blue) 60%,transparent)}
 
 /* 帮助 */
-.help{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;align-items:start}
-.faq details{border-top:1px solid var(--line)}
-.faq details:first-of-type{border-top:0}
-.faq summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 16px;font-weight:600;font-size:13.5px;cursor:pointer}
+.help{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:34px;align-items:start}
+.faq details{border-bottom:1px solid var(--line);padding:13px 0}
+.faq summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:10px}
 .faq summary::-webkit-details-marker{display:none}
-.faq summary .ic{margin-left:auto;color:var(--ink3);transition:transform .2s;width:16px;height:16px}
-.faq details[open] summary .ic{transform:rotate(180deg)}
-.faq details p{margin:-4px 16px 12px;color:var(--ink2);font-size:13px}
-.kv{padding:6px 16px}
-.kv div{padding:9px 0;border-top:1px solid var(--line);font-size:12.8px}
-.kv div:first-child{border:0}
-.kv dt{color:var(--ink3);font-size:12px;margin-bottom:2px}
-.kv dd{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.faq summary::after{content:"+";font:300 18px/1 var(--num);color:var(--ink3)}
+.faq details[open] summary::after{content:"–"}
+.faq p{margin:8px 0 0;color:var(--ink2);font-size:13px;line-height:1.75}
+.kv{margin:0}
+.kv div{padding:12px 0;border-bottom:1px solid var(--line)}
+.kv dt{color:var(--ink3);font-size:12px;margin-bottom:4px}
+.kv dd{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.8px}
 .kv dd small{color:var(--ink3)}
-.kv dd.vers,.vers{display:grid;grid-template-columns:auto auto;gap:2px 14px;font:12.5px var(--num);justify-content:start}
-.vers span{color:var(--ink2);font-family:var(--font)}
-.side-btns{display:grid;gap:8px;margin-top:12px}
+.vers{display:grid!important;grid-template-columns:auto auto;gap:2px 14px;font:italic 13px var(--num);justify-content:start;color:var(--ink)}
+.vers span{color:var(--ink2);font:12.5px var(--sans)}
+.side-btns{display:grid;gap:10px;margin-top:16px}
 
 /* 抽屉 / 弹窗 / 提示 */
-.scrim{position:fixed;inset:0;background:rgba(14,30,55,.32);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
 .scrim.on{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:12px;right:12px;bottom:12px;width:min(640px,calc(100vw - 24px));background:var(--surface);border-radius:20px;z-index:21;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:0 30px 60px -20px rgba(10,30,60,.45)}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100vw);background:var(--card);border-left:1.3px solid var(--line2);z-index:21;transform:translateX(104%);transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:var(--pop)}
 .drawer.on{transform:none}
-.dhead{display:flex;align-items:center;gap:10px;padding:16px 18px 12px;flex-wrap:wrap}
-.dhead h3{margin:0;font-size:16px}
-.x{margin-left:auto;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--ink2)}
-.x:hover{background:var(--panel2)}
-.seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px}
-.seg button{height:26px;padding:0 10px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--ink2)}
-.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.logsum{margin:0 18px 10px;padding:9px 12px;border-radius:12px;background:var(--okSoft);color:var(--logsumOk);font-size:13px;display:flex;gap:8px;align-items:center}
-.logsum.bad{background:var(--badSoft);color:var(--logsumBad)}
-.logs{flex:1;overflow:auto;margin:0 18px;border-radius:14px;background:#0F1B2E;color:#C9D6EA;font:12.5px/1.75 var(--mono);padding:10px 0}
+.dhead{display:flex;align-items:center;gap:12px;padding:20px 22px 12px;flex-wrap:wrap}
+.dhead h3{margin:0;font:600 18px/1.3 var(--serif);letter-spacing:.04em}
+.x{margin-left:auto;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--ink2)}
+.x:hover{background:var(--sunk);color:var(--ink)}
+.logsum{margin:0 22px 12px;padding:9px 12px;border-radius:12px;background:color-mix(in srgb,var(--ok) 12%,var(--card));color:var(--okInk);font-size:13px;display:flex;gap:8px;align-items:center}
+.logsum.bad{background:color-mix(in srgb,var(--bad) 11%,var(--card));color:var(--badInk)}
+.logs{flex:1;overflow:auto;margin:0 22px;border-radius:14px;background:var(--logBg);color:var(--logInk);font:12.5px/1.75 var(--mono);padding:10px 0}
 .logs div{padding:0 14px;white-space:pre-wrap;word-break:break-all}
 .logs div.e{background:rgba(255,92,108,.12)}
-.logs .t{color:#6F84A6}
-.logs .k-err{color:#FF8A94;font-weight:700}.logs .k-warn{color:#FFC861;font-weight:700}.logs .k-ok{color:#5FE0A6;font-weight:700}.logs .k-info{color:#7FB2FF}
+.logs .t{color:#8089B0}
+.logs .k-err{color:#FF8A94;font-weight:700}.logs .k-warn{color:#F2C467;font-weight:700}.logs .k-ok{color:#6FD3A0;font-weight:700}.logs .k-info{color:#8FB2FF}
 .logs .mask{background:rgba(255,255,255,.12);border-radius:4px;padding:0 4px;color:#fff}
-.logs .empty{color:#6F84A6;padding:14px}
-.dfoot{display:flex;align-items:center;gap:8px;padding:12px 18px 16px;font-size:12.5px;color:var(--ink3)}
-.dfoot .btn:first-of-type{margin-left:auto}
-.modal{position:fixed;left:50%;top:50%;width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border-radius:22px;z-index:22;padding:20px 22px;
-  transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s;box-shadow:0 30px 70px -20px rgba(10,30,60,.5)}
+.logs .empty{color:#8089B0;padding:14px}
+.dfoot{display:flex;align-items:center;gap:10px;padding:14px 22px 18px;font-size:12.5px;color:var(--ink3);flex-wrap:wrap}
+.dfoot > span{margin-right:auto}
+.modal{position:fixed;left:50%;top:50%;width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border:1.3px solid var(--line2);border-radius:20px;z-index:22;padding:22px 24px;
+  transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s;box-shadow:var(--pop)}
 .modal.on{transform:translate(-50%,-50%);opacity:1;pointer-events:auto}
 .modal.wide{width:min(620px,calc(100vw - 32px))}
-.modal h3{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px;padding-right:36px}
-.modal .sub{color:var(--ink2);font-size:13px;margin:0 0 14px}
+.modal h3{margin:0 0 6px;font:600 19px/1.35 var(--serif);letter-spacing:.03em;padding-right:36px}
+.modal .msub{color:var(--ink2);font-size:13px;line-height:1.7;margin:0 0 14px}
 .modal .x{position:absolute;right:14px;top:14px}
 .result{display:none;text-align:center;padding:10px 0 4px}
 .result.on{display:block}
-.result .big{width:56px;height:56px;border-radius:50%;background:var(--okSoft);color:var(--ok);display:grid;place-items:center;margin:0 auto 10px}
-.result.fail .big{background:var(--badSoft);color:var(--bad)}
-.result .big .ic{width:28px;height:28px;stroke-width:2.6}
-.result b{display:block;font-size:15px}
+.result .big{width:52px;height:52px;border-radius:50%;background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--okInk);display:grid;place-items:center;margin:0 auto 10px}
+.result.fail .big{background:color-mix(in srgb,var(--bad) 13%,transparent);color:var(--badInk)}
+.result .big .ic{width:26px;height:26px;stroke-width:2.2}
+.result b{display:block;font:600 16px/1.4 var(--serif);letter-spacing:.03em}
 .result span{color:var(--ink2);font-size:13px}
-.warnbox{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--badSoft);color:var(--logsumBad);font-size:13px;font-weight:600;margin:4px 0 12px}
+.warnbox{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--bad) 10%,var(--card));color:var(--badInk);font-size:13px;font-weight:600;margin:4px 0 12px}
 .warnbox .ic{flex:none;margin-top:1px}
 .check{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink2);cursor:pointer;margin-bottom:6px}
-.check input{margin:3px 0 0;accent-color:var(--brand)}
-.sentence{display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--brandSoft);border:1px solid var(--hoverB);font-size:14px;font-weight:600;color:var(--ink);margin-bottom:10px}
+.check input{margin:3px 0 0;accent-color:var(--ink)}
+.sentence{display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--blueSoft);border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);font-size:14px;font-weight:600;color:var(--ink);margin-bottom:10px}
 .sentence span{flex:1;min-width:0;word-break:break-all}
 .filerow{display:flex;align-items:center;gap:10px;font-size:12.8px;color:var(--ink2);margin-bottom:10px}
 .filerow .btn{margin-left:auto;flex:none}
-.pre{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:12px/1.65 var(--mono);white-space:pre-wrap;max-height:210px;overflow:auto;color:var(--ink);word-break:break-all}
+.pre{background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:12px/1.65 var(--mono);white-space:pre-wrap;max-height:210px;overflow:auto;color:var(--ink);word-break:break-all}
 .masked{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
-.masked span{font-size:12px;font-weight:600;color:var(--ok);background:var(--okSoft);border-radius:99px;padding:2px 10px;display:inline-flex;gap:4px;align-items:center}
-.masked .ic{width:12px;height:12px;stroke-width:2.6}
-.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
-.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);background:var(--toast);color:var(--toastInk);padding:10px 16px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:40;display:flex;gap:8px;align-items:center;max-width:calc(100vw - 40px)}
+.masked span{font-size:12px;font-weight:600;color:var(--okInk);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);border-radius:999px;padding:1px 10px;display:inline-flex;gap:4px;align-items:center}
+.masked .ic{width:12px;height:12px;stroke-width:2.2}
+.mfoot{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:40;display:flex;gap:8px;align-items:center;max-width:calc(100vw - 40px);box-shadow:var(--pop)}
 .toast.on{opacity:1;transform:translate(-50%,0)}
-.toast .ic{color:#6EE7B7;width:16px;height:16px}
-.toast.bad .ic{color:#FF8A94}
-@media (max-width:1180px){.today b{font-size:21px}.tab{padding:0 9px}}
-@media (max-width:980px){.app{grid-template-columns:250px 1fr;gap:12px;padding:12px}.tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{padding:0 8px;font-size:13px}.checked{display:none}.status h1{font-size:20px}.today div{padding:0 9px}.today b{font-size:19px}}
-@media (max-width:1040px){.checked span:last-child{display:none}}
-@media (max-width:960px){.grid2{grid-template-columns:1fr}.acts3{grid-template-columns:repeat(2,1fr)}.help{grid-template-columns:1fr}.opts{grid-template-columns:1fr}}
-@media (max-height:700px){.whale-wrap{top:140px;width:min(220px,66%)}.say{top:66px}}
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.toast .ic{color:var(--ok);width:16px;height:16px}
+.toast.bad .ic{color:var(--bad)}
 
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0D1522; --panel:#152033; --panel2:#1B2840; --ink:#E5ECF7; --ink2:#A2B1C7; --ink3:#6F819C; --line:#24334A;
-  --brand:#4F8CFF; --brand2:#7DAAFF; --brandSoft:#1B2C4E;
-  --ok:#3FCB86; --okSoft:#14301F; --bad:#FF6B72; --badSoft:#381E25; --warn:#F2B04E; --warnSoft:#2E2416; --off:#8191A7; --offSoft:#202C3E;
-  --sh:0 1px 2px rgba(0,0,0,.35),0 10px 30px -18px rgba(0,0,0,.7);
-  --surface:#152033; --say:#F2F7FF; --sayInk:#10233F; --glass:rgba(14,24,42,.86); --track:#24334A; --hoverB:#35548A; --hover2:#22324A;
-  --noticeB:#4A3A1E; --noticeIc:#45361B; --noticeT:#E3C28A; --badB:#6A2D36; --badG:#2A1A24; --warnB:#5A4520; --warnG:#2A2418; --qqG:#2A2216; --qqB:#4A3A1E; --blankB:#4A6A9A; --blankPh:#5C6F8C; --mask:#24334A;
-  --toast:#E5ECF7; --toastInk:#0D1522; --tankInk:#EAF2FF; --tankInk2:#93B6E8; --verBg:rgba(255,255,255,.12); --verInk:#CFE0FF; --tabOnInk:#0D1522; --scroll:#2E4060;
-  --water:linear-gradient(180deg,#14396E 0%,#0F2D5C 38%,#0A2149 74%,#071733 100%); --rays:.16; --sand1:#4B4436; --sand2:#3D372B; --peb:#5A5141;
-  --bubB:rgba(150,200,255,.5); --bubC:rgba(150,200,255,.3); --logsumOk:#7FE0AE; --logsumBad:#FFB3B8;}
-  :root:not([data-theme="light"]) .act .ico.c2{background:#123228;color:#4FD6A8}:root:not([data-theme="light"]) .act .ico.c3{background:#3A2416;color:#FF9D63}:root:not([data-theme="light"]) .act .ico.c4{background:#271F48;color:#A994FF}:root:not([data-theme="light"]) .act .ico.c5{background:#3A1C27;color:#FF7FA0}}
-:root[data-theme="dark"]{--bg:#0D1522; --panel:#152033; --panel2:#1B2840; --ink:#E5ECF7; --ink2:#A2B1C7; --ink3:#6F819C; --line:#24334A;
-  --brand:#4F8CFF; --brand2:#7DAAFF; --brandSoft:#1B2C4E;
-  --ok:#3FCB86; --okSoft:#14301F; --bad:#FF6B72; --badSoft:#381E25; --warn:#F2B04E; --warnSoft:#2E2416; --off:#8191A7; --offSoft:#202C3E;
-  --sh:0 1px 2px rgba(0,0,0,.35),0 10px 30px -18px rgba(0,0,0,.7);
-  --surface:#152033; --say:#F2F7FF; --sayInk:#10233F; --glass:rgba(14,24,42,.86); --track:#24334A; --hoverB:#35548A; --hover2:#22324A;
-  --noticeB:#4A3A1E; --noticeIc:#45361B; --noticeT:#E3C28A; --badB:#6A2D36; --badG:#2A1A24; --warnB:#5A4520; --warnG:#2A2418; --qqG:#2A2216; --qqB:#4A3A1E; --blankB:#4A6A9A; --blankPh:#5C6F8C; --mask:#24334A;
-  --toast:#E5ECF7; --toastInk:#0D1522; --tankInk:#EAF2FF; --tankInk2:#93B6E8; --verBg:rgba(255,255,255,.12); --verInk:#CFE0FF; --tabOnInk:#0D1522; --scroll:#2E4060;
-  --water:linear-gradient(180deg,#14396E 0%,#0F2D5C 38%,#0A2149 74%,#071733 100%); --rays:.16; --sand1:#4B4436; --sand2:#3D372B; --peb:#5A5141;
-  --bubB:rgba(150,200,255,.5); --bubC:rgba(150,200,255,.3); --logsumOk:#7FE0AE; --logsumBad:#FFB3B8;}
-:root[data-theme="dark"] .act .ico.c2{background:#123228;color:#4FD6A8}:root[data-theme="dark"] .act .ico.c3{background:#3A2416;color:#FF9D63}:root[data-theme="dark"] .act .ico.c4{background:#271F48;color:#A994FF}:root[data-theme="dark"] .act .ico.c5{background:#3A1C27;color:#FF7FA0}
+@media (max-width:1000px){.win{grid-template-columns:300px minmax(0,1fr)}.side{padding:20px 16px 18px 20px}.status h1{font-size:26px}.menu{column-gap:22px}.ops{grid-template-columns:repeat(2,1fr)}.help{grid-template-columns:1fr}.ago{display:none}}
+@media (max-width:860px){.menu,.asks,.opts{grid-template-columns:1fr}}
+@media (max-height:640px){.portrait{margin-top:30px}.status{margin-top:14px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
-<body>
+<body data-st="idle" data-face="ok">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></symbol>
  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.8 2.9 19.6h18.2L12 3.8Z"/><path d="M12 10v4.2M12 17.1h.01"/></symbol>
  <symbol id="i-minus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/></symbol>
  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.6 2.2H4.4L6 16Z"/><path d="M10 20.6a2.1 2.1 0 0 0 4 0"/></symbol>
- <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.2v4.6h-4.6"/></symbol>
+ <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5v14.5M12 5a3 3 0 0 0-5.2 1.3A3 3 0 0 0 4.4 11a3 3 0 0 0 1 4.6A3.1 3.1 0 0 0 9 19.5h3M12 5a3 3 0 0 1 5.2 1.3A3 3 0 0 1 19.6 11a3 3 0 0 1-1 4.6 3.1 3.1 0 0 1-3.6 3.9h-3"/><path d="M8.2 10.5a2 2 0 0 0 1.8 1M15.8 10.5a2 2 0 0 1-1.8 1"/></symbol>
  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6.6A2.6 2.6 0 0 1 6.6 4h10.8A2.6 2.6 0 0 1 20 6.6v7.8a2.6 2.6 0 0 1-2.6 2.6H10.5L6 20.5V17A2.3 2.3 0 0 1 4 14.6V6.6Z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/></symbol>
+ <symbol id="i-qq" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4 3.5V17h0a2.5 2.5 0 0 1-2-2.5Z"/><path d="M9 10.5h.01M15 10.5h.01"/></symbol>
  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 3 5 13.6h6.1L10.4 21l8.2-10.6h-6.1L13.2 3Z"/></symbol>
- <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.8 11a6.2 6.2 0 0 0 12.4 0M12 17.4v3.2"/></symbol>
- <symbol id="i-book" viewBox="0 0 24 24"><path d="M4.6 5.2A2.2 2.2 0 0 1 6.8 3H19.4v14.2H6.8a2.2 2.2 0 0 0-2.2 2.2V5.2Z"/><path d="M4.6 19.4a2.2 2.2 0 0 0 2.2 2.1h12.6"/><path d="M12 13s-3-1.8-3-3.7a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8C15 11.2 12 13 12 13Z"/></symbol>
- <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.6"/><circle cx="8.6" cy="9.6" r="1.6"/><path d="m21 15.5-4.8-4.8L7.5 19.4"/></symbol>
- <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.2v8"/><path d="M7.1 6.3a7.2 7.2 0 1 0 9.8 0"/></symbol>
- <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M15 4.4a4.6 4.6 0 0 0-4.3 6.2l-6.2 6.3a1.9 1.9 0 0 0 2.6 2.6l6.3-6.2A4.6 4.6 0 0 0 19.6 9l-2.9 2.8-2.6-.9-.9-2.6 2.9-2.9A4.6 4.6 0 0 0 15 4.4Z"/></symbol>
- <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2.2v2.2H14zM18 18h2v2h-2zM14 19.5h1.5M19.5 14h.5"/></symbol>
+ <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></symbol>
  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3.8 12a8.2 8.2 0 1 0 2.6-6"/><path d="M3.8 4v5h5"/></symbol>
  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
- <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
- <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.4"/><path d="M5 9v9.3A1.7 1.7 0 0 0 6.7 20h10.6a1.7 1.7 0 0 0 1.7-1.7V9M10 13h4"/></symbol>
+ <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></symbol>
+ <symbol id="i-box" viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M3 5h18v3H3zM10 12h4"/></symbol>
  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.2a2.2 2.2 0 0 1 2.2-2.2h3.9l2.1 2.4h6.6a2.2 2.2 0 0 1 2.2 2.2v7.2a2.2 2.2 0 0 1-2.2 2.2H5.7a2.2 2.2 0 0 1-2.2-2.2V7.2Z"/></symbol>
- <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.4"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2.2"/></symbol>
- <symbol id="i-buoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.7"/><path d="m5.9 5.9 3.5 3.5M18.1 5.9l-3.5 3.5M5.9 18.1l3.5-3.5M18.1 18.1l-3.5-3.5"/></symbol>
- <symbol id="i-log" viewBox="0 0 24 24"><path d="M5 5.5h14M5 10h14M5 14.5h9M5 19h6"/></symbol>
- <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 12h1.5M8 8.5v7M11.5 5v14M15 9v6M18.5 7v10"/></symbol>
+ <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+ <symbol id="i-buoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/><path d="m6.4 6.4 3.3 3.3M14.3 14.3l3.3 3.3M17.6 6.4l-3.3 3.3M9.7 14.3l-3.3 3.3"/></symbol>
+ <symbol id="i-log" viewBox="0 0 24 24"><path d="M7 4h8l4 4v12H7z"/><path d="M15 4v4h4M10 12h6M10 16h6"/></symbol>
+ <symbol id="i-game" viewBox="0 0 24 24"><path d="M7 8h10a4 4 0 0 1 3.8 5.3l-1 3a2.5 2.5 0 0 1-4.3.8L14 15h-4l-1.5 2.1a2.5 2.5 0 0 1-4.3-.8l-1-3A4 4 0 0 1 7 8Z"/><path d="M8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01"/></symbol>
  <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8.6" r="3.8"/><path d="M4.8 20.2a7.2 7.2 0 0 1 14.4 0"/><path d="M18.5 3.5l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6.6-1.5Z"/></symbol>
- <symbol id="i-toggle" viewBox="0 0 24 24"><rect x="2.8" y="7" width="18.4" height="10" rx="5"/><circle cx="16.2" cy="12" r="2.8"/></symbol>
- <symbol id="i-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 16V8.4M8.6 11.6 12 8.2l3.4 3.4"/></symbol>
- <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.5M12 16.9h.01"/></symbol>
  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6.5 3.5h7.7l4.3 4.3v12.7h-12z"/><path d="M14 3.6v4.4h4.4M9.3 12.2h5.4M9.3 15.6h5.4"/></symbol>
  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
- <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.6v12.8l10-6.4z"/></symbol>
- <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
- <symbol id="i-spark" viewBox="0 0 24 24"><path d="M11 3.5l1.9 5.4 5.4 1.9-5.4 1.9L11 18.1l-1.9-5.4-5.4-1.9 5.4-1.9L11 3.5Z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"/></symbol>
- <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M8.6 14a4 4 0 0 0 6.8 0M9 9.6h.01M15 9.6h.01"/></symbol>
- <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.4 19.2a5.6 5.6 0 0 1 11.2 0M15.8 5.6a3.2 3.2 0 0 1 0 5.8M17.6 14.4a5.6 5.6 0 0 1 3 4.8"/></symbol>
- <symbol id="i-heartmsg" viewBox="0 0 24 24"><path d="M4 6.6A2.6 2.6 0 0 1 6.6 4h10.8A2.6 2.6 0 0 1 20 6.6v7.8a2.6 2.6 0 0 1-2.6 2.6H10.5L6 20.5V17A2.3 2.3 0 0 1 4 14.6V6.6Z"/><path d="M12 13.4s-2.8-1.6-2.8-3.4a1.5 1.5 0 0 1 2.8-.7 1.5 1.5 0 0 1 2.8.7c0 1.8-2.8 3.4-2.8 3.4Z"/></symbol>
- <symbol id="i-feather" viewBox="0 0 24 24"><path d="M19.5 4.5c-6 0-11 4-11.5 10.5L5 19.5M8 15h6.5c3-1.5 5-5.6 5-10.5"/><path d="M10.5 11.5h6"/></symbol>
- <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.4"/><path d="m16 10.2 5-3v9.6l-5-3"/></symbol>
  <symbol id="i-msgs" viewBox="0 0 24 24"><path d="M3.5 5.8A2.3 2.3 0 0 1 5.8 3.5h8.4a2.3 2.3 0 0 1 2.3 2.3v5.4a2.3 2.3 0 0 1-2.3 2.3H9L5.5 16.3v-2.8a2.2 2.2 0 0 1-2-2.3V5.8Z"/><path d="M19 8.5a2 2 0 0 1 1.5 2v5.3a2 2 0 0 1-1.7 2v2.6L15.6 18H11"/></symbol>
- <symbol id="i-yen" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M9 7.6l3 4.1 3-4.1M12 11.7v5M9.4 12.8h5.2M9.4 15.2h5.2"/></symbol>
  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.8"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></symbol>
- <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1Z"/></symbol>
- <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.6V12l3 2"/></symbol>
+ <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
 </svg>
 
-<!-- 鲸鱼：自己画的，表情跟状态走 -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
- <defs>
-  <linearGradient id="wBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#62B4FF"/><stop offset="1" stop-color="#2A68DD"/></linearGradient>
-  <clipPath id="wClip"><path d="M34 66C34 40 62 24 96 24C128 24 148 44 148 66C148 90 124 102 94 102C62 102 40 90 34 66Z"/></clipPath>
- </defs>
- <symbol id="whale" viewBox="0 0 160 112">
-  <g class="spout" stroke="#E8F6FF" stroke-width="3" stroke-linecap="round" fill="none"><path d="M104 22C104 13 98 8 90 9"/><path d="M104 22C104 13 110 8 118 9"/><path d="M104 21V10"/></g>
-  <g class="spout" fill="#E8F6FF"><circle cx="88" cy="9" r="2.6"/><circle cx="120" cy="9" r="2.6"/><circle cx="104" cy="7" r="2.6"/></g>
-  <path fill="#2E70E4" d="M38 76C24 72 18 54 22 38C14 38 7 33 5 25C13 23 20 25 24 30C28 23 35 19 43 19C40 27 35 33 32 40C31 52 36 60 46 66Z"/>
-  <path fill="url(#wBody)" d="M34 66C34 40 62 24 96 24C128 24 148 44 148 66C148 90 124 102 94 102C62 102 40 90 34 66Z"/>
-  <g clip-path="url(#wClip)"><ellipse cx="104" cy="106" rx="54" ry="24" fill="#E4F1FF"/></g>
-  <ellipse cx="74" cy="38" rx="11" ry="4" transform="rotate(-18 74 38)" fill="#fff" opacity=".38"/>
-  <path fill="#2457C6" d="M100 76C95 85 86 91 75 91C81 85 86 79 88 72C92 71 97 72 100 76Z"/>
-  <g class="e-n"><circle cx="122" cy="57" r="6" fill="#13213D"/><circle cx="124.2" cy="54.6" r="2.1" fill="#fff"/></g>
-  <path class="e-h" d="M115.5 59Q122 51 128.5 59" stroke="#13213D" stroke-width="3.2" stroke-linecap="round" fill="none"/>
-  <g class="e-w"><circle cx="122" cy="58" r="5" fill="#13213D"/><circle cx="123.6" cy="56.3" r="1.7" fill="#fff"/><path d="M114.5 46.5 127 42.5" stroke="#13213D" stroke-width="2.6" stroke-linecap="round"/></g>
-  <ellipse cx="131" cy="70" rx="7" ry="4" fill="#FF8FA3" opacity=".62"/>
-  <path class="m-s" d="M137 76Q141.5 80 146 75" stroke="#13213D" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-  <path class="m-w" d="M137 78Q139.5 75.5 142 78Q144.5 80.5 147 77.5" stroke="#13213D" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-  <path class="sweat" d="M140 33C135.5 39.5 135.5 44 140 45C144.5 44 144.5 39.5 140 33Z" fill="#DDF1FF" stroke="#5DB0FF" stroke-width="1.3"/>
- </symbol>
-</svg>
-<style>
-.mood-happy .e-n,.mood-happy .e-w,.mood-happy .m-w,.mood-happy .sweat{display:none}
-.mood-worry .e-n,.mood-worry .e-h,.mood-worry .m-s,.mood-worry .spout{display:none}
-.mood-norm .e-h,.mood-norm .e-w,.mood-norm .m-w,.mood-norm .sweat{display:none}
-</style>
-
-<div class="app">
-  <!-- 左：鱼缸 -->
-  <aside class="tank" id="tank">
-    <div class="water"></div>
-    <div class="tank-top">
-      <div class="brand">大肥鱼工作台<small id="tankDir">　</small></div>
-      <span class="ver" id="ver">v1.0</span>
+<div class="win">
+  <!-- 左：她 -->
+  <aside class="side">
+    <div class="brand"><b>大肥鱼工作台</b><small id="brandSub"></small></div>
+    <div class="portrait" id="portrait">
+      <svg class="lace" viewBox="0 0 352 16" preserveAspectRatio="none" aria-hidden="true"><path class="fill" id="laceFill"/><path class="edge" id="laceEdge"/><g id="laceDots"></g></svg>
+      <div class="halo"></div><div class="ring r1"></div><div class="ring r2"></div>
+      <div class="lamp" aria-hidden="true"><i></i><b></b><b></b><b></b></div>
+      <div class="girl" id="girl" role="img" aria-label="大肥鱼"></div>
+      <div class="say" id="say">我看看哈……</div>
     </div>
-    <div class="say" id="say">我看看哈……</div>
-    <div class="whale-wrap"><svg viewBox="0 0 160 112" id="whaleSvg" class="mood-norm" data-whale role="img" aria-label="大肥鱼"></svg></div>
-    <div id="bubbles"></div>
-    <div class="sand"></div>
-    <svg class="floor" viewBox="0 0 380 140" preserveAspectRatio="none" aria-hidden="true">
-      <g class="seaweed" style="transform-box:fill-box"><path d="M40 120C34 100 48 90 42 70C38 58 44 48 48 40" stroke="#2FAF84" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M54 120C60 104 50 94 58 78C62 70 60 62 56 56" stroke="#45C79A" stroke-width="6" fill="none" stroke-linecap="round"/></g>
-      <g class="seaweed s2" style="transform-box:fill-box"><path d="M322 118C330 98 316 88 324 66C328 56 326 48 320 40" stroke="#2FAF84" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M336 118C332 104 344 96 338 82" stroke="#45C79A" stroke-width="6" fill="none" stroke-linecap="round"/></g>
-      <path class="s1" d="M0 96C60 80 120 92 190 86C260 80 320 92 380 84V140H0Z"/>
-      <path class="s2" d="M0 112C80 100 150 110 220 104C290 98 340 108 380 102V140H0Z"/>
-      <ellipse class="pb" cx="268" cy="96" rx="9" ry="5"/><ellipse class="pb" cx="282" cy="99" rx="5" ry="3.5"/><ellipse class="pb" cx="96" cy="92" rx="6" ry="3.8"/>
-    </svg>
-
     <section class="status" aria-live="polite">
-      <span class="chip busy" id="chip"><svg class="ic"><use href="#i-refresh"/></svg><span>正在查</span></span>
+      <span class="chip"><span class="dot"></span><span id="chip">正在查</span></span>
       <h1 id="headline">正在查她在不在</h1>
       <p id="reason">两三秒就好。</p>
       <div class="acts" id="heroActs"></div>
@@ -449,77 +407,78 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 
   <!-- 右：标签页 -->
   <main class="main">
-    <div class="topbar">
+    <div class="top">
       <nav class="tabs" role="tablist">
         <button class="tab on" data-tab="st">她的状态</button>
         <button class="tab" data-tab="op">一键操作</button>
         <button class="tab" data-tab="fn">功能和补装</button>
-        <button class="tab" data-tab="up">更新 <span class="n" id="upN" hidden></span></button>
+        <button class="tab" data-tab="up">更新<span class="n" id="upN" hidden></span></button>
         <button class="tab" data-tab="ag">交给 Agent</button>
         <button class="tab" data-tab="hp">帮助</button>
       </nav>
-      <div class="checked" id="checked"><span class="pulse"></span><span id="ago">正在查…</span></div>
-      <button class="iconbtn" id="theme" title="切换浅色 / 深色"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <div class="ago" id="agoBox"><span class="dot"></span><span id="ago">正在查…</span></div>
+      <button class="iconbtn" id="theme" title="浅色 / 深色"><svg class="ic"><use href="#i-moon"/></svg></button>
       <button class="iconbtn" id="refresh" title="马上再查一遍"><svg class="ic"><use href="#i-refresh"/></svg></button>
     </div>
 
-    <div class="pages">
+    <div class="pages" id="pages">
       <!-- 她的状态 -->
       <section class="page on" id="p-st">
-        <div class="card today" id="today" hidden></div>
-        <div id="noticeBox"></div>
-        <div class="sec"><h2>八项检查</h2>
-          <div class="legend"><span style="color:var(--ok)"><svg class="ic"><use href="#i-check"/></svg>正常</span><span style="color:var(--bad)"><svg class="ic"><use href="#i-alert"/></svg>出问题</span><span><svg class="ic"><use href="#i-minus"/></svg>没开</span></div>
+        <div class="head">
+          <div><h2>八项检查</h2><small>每 10 秒自己查一遍</small></div>
+          <div class="tally" id="tally"></div>
         </div>
-        <div class="grid2" id="items"></div>
+        <div class="today" id="today" hidden></div>
+        <div id="noticeBox"></div>
+        <div class="menu intro" id="items"></div>
+        <div class="foot"><span>号码、密钥在这页都不显示</span><a href="#" data-run="logs">看最近日志</a></div>
       </section>
 
       <!-- 一键操作 -->
       <section class="page" id="p-op">
-        <div class="acts3" id="ops"></div>
-        <div class="card pathbar">
-          <svg class="ic"><use href="#i-lock"/></svg>
-          <span>后台的账号密码在 <code id="bkPath">private\backend.txt</code>（这里不显示密码）</span>
-          <button class="btn sm ghost" data-folder="backend"><svg class="ic"><use href="#i-folder"/></svg>打开所在文件夹</button>
-        </div>
+        <div class="head"><div><h2>一键操作</h2><small>要动她的会先问一句，不会直接动手</small></div></div>
+        <div class="ops" id="ops"></div>
+        <div class="path"><svg class="ic"><use href="#i-lock"/></svg><span>后台的账号密码在 <code id="bkPath">private\backend.txt</code>，这里不显示密码</span><button class="btn sm ghost" data-folder="backend">打开所在文件夹</button></div>
       </section>
 
       <!-- 功能和补装 -->
       <section class="page" id="p-fn">
-        <div class="card inst" id="inst"></div>
-        <div class="sec"><h2>每项功能</h2><small>哪项没装好，点「补装」放后台装，她照常聊天</small></div>
-        <div class="card rows" id="feats"></div>
-        <div class="sec"><h2>更细的设置（在 AstrBot 后台里）</h2></div>
-        <div class="card chips" id="chips"></div>
+        <div class="head"><div><h2>每项功能</h2><small>哪项没装好，点「补装」放后台装，她照常聊天</small></div></div>
+        <div id="feats"></div>
+        <div class="sub">更细的设置<small>在 AstrBot 后台里</small></div>
+        <div class="chips" id="chips"></div>
+        <div class="sub">装机清单</div>
+        <div class="inst" id="inst"></div>
       </section>
 
       <!-- 更新 -->
       <section class="page" id="p-up">
         <div id="qqwarnBox"></div>
-        <div class="sec"><h2>版本</h2><small>安装 Skill 和工作台点一下就能更新；别的复制一句话交给 Agent</small></div>
-        <div class="card" id="upds"></div>
-        <div class="upfoot"><span id="upAt">正在查……</span><button class="btn sm ghost" id="upNow"><svg class="ic"><use href="#i-refresh"/></svg>现在查一次</button></div>
+        <div class="head"><div><h2>版本</h2><small>安装 Skill 和工作台点一下就能更新；别的复制一句话交给 Agent</small></div></div>
+        <div id="upds"></div>
+        <div class="foot"><span id="upAt">正在查……</span><button class="linkbtn" id="upNow">现在查一次</button></div>
       </section>
 
       <!-- 交给 Agent -->
       <section class="page" id="p-ag">
-        <p class="lead">复杂的事交给 <b>Agent</b>（帮你在电脑上干活的 AI 助手）。复制一句，粘到 DeepSeek Harness 里发出去；<b>虚线空格可以先在这里点一下填好</b>，复制时会一起带上。</p>
-        <div class="grid2" id="asks"></div>
+        <p class="lead2">复杂的事交给 <b>Agent</b>（帮你在电脑上干活的 AI 助手）。复制一句，粘到 DeepSeek Harness 里发出去；<b>虚线空格可以先在这里点一下填好</b>，复制时会一起带上。</p>
+        <div class="asks" id="asks"></div>
       </section>
 
       <!-- 帮助 -->
       <section class="page" id="p-hp">
+        <div class="head"><div><h2>常见问题</h2></div></div>
         <div class="help">
-          <div class="card faq" id="faq"></div>
+          <div class="faq" id="faq"></div>
           <div>
-            <div class="card kv">
+            <dl class="kv">
               <div><dt>她装在</dt><dd><code id="hpDir">　</code><button class="btn sm ghost" data-folder="dir">打开</button></dd></div>
               <div><dt>后台账号密码在</dt><dd><code id="hpBk">　</code><small>只给位置，不显示密码</small></dd></div>
               <div><dt>版本</dt><dd class="vers" id="vers"></dd></div>
-            </div>
+            </dl>
             <div class="side-btns">
               <button class="btn ghost" data-run="diag"><svg class="ic"><use href="#i-buoy"/></svg>复制求助信息</button>
-              <button class="btn ghost" data-run="backup"><svg class="ic"><use href="#i-archive"/></svg>备份到桌面</button>
+              <button class="btn ghost" data-run="backup"><svg class="ic"><use href="#i-box"/></svg>备份到桌面</button>
             </div>
           </div>
         </div>
@@ -549,7 +508,7 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 <div class="modal" id="m-confirm" role="dialog" aria-modal="true">
   <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
   <h3 id="cfTitle">　</h3>
-  <p class="sub" id="cfSub">　</p>
+  <p class="msub" id="cfSub">　</p>
   <div class="progress" id="cfProg"><div class="bar"><i></i></div><div class="step"><span class="lbl">准备中…</span><span class="pct">0%</span></div></div>
   <div class="result" id="cfRes"><div class="big"><svg class="ic"><use href="#i-check"/></svg></div><b>　</b><span></span></div>
   <div class="mfoot" id="cfFoot"><button class="btn ghost" data-close>先不了</button><button class="btn primary" id="cfGo">开始</button></div>
@@ -559,12 +518,12 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 <div class="modal" id="m-backup" role="dialog" aria-modal="true">
   <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
   <h3>备份到桌面</h3>
-  <p class="sub">把她的记忆、人设、聊天记录、插件设置（astrbot\data）和 private 文件夹打成桌面上一个 zip。换电脑、重装前用；她开着也能备份。</p>
+  <p class="msub">把她的记忆、人设、聊天记录、插件设置（astrbot\data）和 private 文件夹打成桌面上一个 zip。换电脑、重装前用；她开着也能备份。</p>
   <div class="warnbox"><svg class="ic"><use href="#i-lock"/></svg><span>里面有你的密钥和密码。只给自己留着，别发给别人，也别传网盘分享。</span></div>
   <label class="check" id="bkMemesRow"><input type="checkbox" id="bkMemes"><span>连表情包图片一起备份（多几百 MB）。不带的话，换电脑后点「补装表情包」重新下。</span></label>
   <div class="progress" id="bkProg"><div class="bar"><i></i></div><div class="step"><span class="lbl">准备中…</span><span class="pct">0%</span></div></div>
   <div class="result" id="bkRes"><div class="big"><svg class="ic"><use href="#i-check"/></svg></div><b>　</b><span></span></div>
-  <div class="mfoot" id="bkFoot"><button class="btn ghost" data-close>先不了</button><button class="btn primary" id="bkGo"><svg class="ic"><use href="#i-archive"/></svg>开始备份</button></div>
+  <div class="mfoot" id="bkFoot"><button class="btn ghost" data-close>先不了</button><button class="btn primary" id="bkGo"><svg class="ic"><use href="#i-box"/></svg>开始备份</button></div>
   <div class="mfoot" id="bkDone" hidden><button class="btn ghost" id="bkShow"><svg class="ic"><use href="#i-folder"/></svg>在文件夹里显示</button><button class="btn primary" data-close>好</button></div>
 </div>
 
@@ -572,7 +531,7 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 <div class="modal wide" id="m-diag" role="dialog" aria-modal="true">
   <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
   <h3>复制求助信息</h3>
-  <p class="sub">把下面这句发到评论区或群里；桌面上那个 txt 发给 Agent。号码只留头尾，密钥、口令、密码都去掉了。</p>
+  <p class="msub">把下面这句发到评论区或群里；桌面上那个 txt 发给 Agent。号码只留头尾，密钥、口令、密码都去掉了。</p>
   <div class="progress" id="dgProg"><div class="bar"><i></i></div><div class="step"><span class="lbl">准备中…</span><span class="pct">0%</span></div></div>
   <div id="dgBody" hidden>
     <div class="sentence"><span id="dgSentence"></span><button class="btn sm primary" id="dgCopy"><svg class="ic"><use href="#i-copy"/></svg>复制这句</button></div>
@@ -589,11 +548,14 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 (function(){
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-$$('svg[data-whale]').forEach(v=>v.innerHTML=document.getElementById('whale').innerHTML);
 const ic=id=>`<svg class="ic"><use href="#${id}"/></svg>`;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STATE_IC={ok:'i-check',bad:'i-alert',warn:'i-alert',off:'i-minus',unk:'i-minus',busy:'i-refresh'};
 const STATE_TX={ok:'正常',bad:'出问题',warn:'要注意',off:'没开',unk:'查不到',busy:'正在弄'};
+
+/* ---------- 她的三张状态图：换角色、换图只改这里（文件放在同目录 assets\ 里，server.py 只发 .webp 和 .woff2）。
+   哪张缺了就拿「好着呢」那张顶上；三张都没有（文件缺了、没随包发），卡上只留光圈、小灯和气泡，不出碎图标。 ---------- */
+const FACES={ok:'assets/ok.webp',warn:'assets/warn.webp',bad:'assets/bad.webp'};
 
 /* ---------- Edge 已经开着时 --window-size 不管用：第一次打开时窗口太小或太大，自己调到 1100×760 左右并居中 ---------- */
 try{ if(!sessionStorage.getItem('dfy-wb-sized') && (outerWidth<980 || outerHeight<620 || outerWidth>screen.availWidth || outerHeight>screen.availHeight)){
@@ -627,7 +589,7 @@ function prog(box, pct, label){ box.classList.add('on'); $('.bar i',box).style.w
 function progOff(box){ box.classList.remove('on'); $('.bar i',box).style.width='0'; }
 
 /* ---------- 标签页 ---------- */
-function go(tab){ $$('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab)); $$('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+tab)); }
+function go(tab){ $$('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab)); $$('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+tab)); $('#pages').scrollTop=0; }
 $$('.tab').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
 
 /* ---------- 浅色 / 深色 ---------- */
@@ -644,25 +606,51 @@ function closeAll(){ $$('.modal.on,.drawer.on').forEach(m=>m.classList.remove('o
 $('#scrim').addEventListener('click',closeAll); $$('[data-close]').forEach(b=>b.addEventListener('click',closeAll));
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAll(); });
 
-/* ---------- 她的台词 ---------- */
+/* ---------- 左边那张卡：头箍浪花边（12 个半圆，每个里面一颗淡紫圆心）、三张图 ---------- */
+(function(){
+  const W=352,n=12,w=W/n,r=w/2,H=16;
+  let d=`M0 ${H}`; for(let i=0;i<n;i++) d+=` A${r} ${r} 0 0 1 ${(i+1)*w} ${H}`;
+  $('#laceFill').setAttribute('d',d+` V${H+2} H0 Z`); $('#laceEdge').setAttribute('d',d);
+  $('#laceDots').innerHTML=Array.from({length:n},(_,i)=>`<circle cx="${i*w+r}" cy="${H-r*0.42}" r="2.6"/>`).join('');
+})();
+const girl=$('#girl'), faceOK={}; let faceWant='ok', facePending=0;
+function showFace(){
+  const use=faceOK[faceWant]?faceWant:faceOK.ok?'ok':Object.keys(faceOK)[0]||'';
+  girl.dataset.show=use;
+  $('#portrait').classList.toggle('noimg',!use&&!facePending);
+}
+Object.entries(FACES).forEach(([k,src])=>{
+  if(!src) return; facePending++;
+  const im=new Image(); im.className=k; im.alt=''; im.decoding='async';
+  im.onload=()=>{ facePending--; faceOK[k]=true; girl.appendChild(im); showFace(); };
+  im.onerror=()=>{ facePending--; showFace(); };
+  im.src=src+(src.includes('?')?'&':'?')+'v=__WB_V__';
+});
+showFace();
+/* face：她用哪张图（ok / warn / bad）；st：灯、光圈、小圆点用什么颜色，平时跟 face 一样，工作台自己停了时是灰的 */
+function setFace(face, st){ faceWant=face; document.body.dataset.face=face; document.body.dataset.st=st||face; showFace(); }
+
+/* ---------- 她的台词（显示在她头上的气泡里） ---------- */
 const LINES={
-  ok:['吃饱了，正在摸鱼。有事去 QQ 叫我','一切正常。别老盯着我看，怪不好意思的','我在呢。去 QQ 找我聊，别在这儿看鱼缸','今天回了 <b>{replies}</b>，累了，要吃两碗 token','今天吃掉 <b>{tokens}</b> token，还能再吃一点','我好着呢，<b>才不是</b>在等你'],
-  brain:['我……睡着了？帮我点一下，叫醒我','大脑没开，现在就是一条咸鱼'],
+  ok:['今天也有在认真摸鱼哦','吃饱了，正在摸鱼','我在呢，去 QQ 找我聊','别老盯着我看，怪不好意思的','今天回了 <b>{replies}</b>，累了','今天吃掉 <b>{tokens}</b> token','我好着呢，<b>才不是</b>在等你'],
+  brain:['我……睡着了？帮我点一下','大脑没开，现在是条咸鱼'],
   brainBusy:['在醒了在醒了，别催','伸个懒腰，马上就好'],
-  qq:['被踢下线了，<b>才不是我乱说话</b>','QQ 没登上，我在缸里干着急'],
-  money:['饿了……余额见底了，充一点嘛','没饭吃了，回不动话'],
+  qq:['我……我是不是掉线了','被踢下线了，<b>才不是我乱说话</b>','QQ 没登上，我在这儿干着急'],
+  money:['饿了……余额见底了','没饭吃了，回不动话'],
   key:['饭卡刷不了，钥匙好像不对','进不去饭堂，密钥不对'],
-  voice:['嗓子哑了，<b>才不是偷懒</b>。先打字陪你','发不出声音，先打字凑合一下'],
-  memory:['脑子有点空，新的事记不住了','记性突然变差了，帮我看看嘛'],
+  voice:['嗓子哑了，<b>才不是偷懒</b>','发不出声音，先打字陪你'],
+  memory:['唔……我好像忘了点什么','脑子有点空，新的事记不住'],
   vision:['视频我看不了，图还行'],
-  memes:['表情包没到齐，先凑合发字','我的表情包呢？还差几张'],
+  memes:['我的表情包呢？还差几张','表情包没到齐，先凑合发字'],
   autostart:['下次开机我不会自己起来哦','开机自启没设好，帮我补一下'],
+  pet:['桌面上那个我，现在联系不上我本鱼','桌宠那边断线了，帮我重开一下桥'],
   lowmoney:['余粮不多了，记得充一点','快吃不起 token 了'],
+  many:['好几个地方不对劲……','帮我看看嘛，有点乱'],
   busy:['在搬东西，别催，越催越慢','下东西中，先陪你聊会儿'],
   fixing:['等一下下，我在弄','别走开，马上就好'],
-  game:['显卡让给你了，我先只打字陪你','去打吧，赢了记得来 QQ 跟我说','打游戏中，这会儿说的我先不记'],
-  gameLeft:['上次打游戏的时候关的东西，还没开回来'],
-  down:['工作台的小窗口断了，我本鱼没事','我还在 QQ 上，只是这个窗口连不上了'],
+  game:['显卡让给你了，我先只打字','去打吧，赢了来 QQ 跟我说','打游戏中，这会儿说的先不记'],
+  gameLeft:['上次关的东西还没开回来'],
+  down:['小窗口断了，我本鱼没事','我还在 QQ 上，只是这个窗口连不上了'],
 };
 function pickLine(key, S){
   const arr=LINES[key]||LINES.ok; const st={}; (S&&S.stats||[]).forEach(x=>st[x.id]=x);
@@ -671,28 +659,46 @@ function pickLine(key, S){
   return pool[i].replace(/\{(\w+)\}/g,(m,k)=>esc(st[k].n+(st[k].unit||'')));
 }
 
-/* ---------- 汇总：左边鱼缸说什么 ---------- */
-const HEAD={voice:'发不了语音',memory:'记不住新的事',vision:'看不了视频',autostart:'开机不会自己上线',memes:'表情包没装全',deepseek:'余额快用完了'};
+/* ---------- 汇总：左边那张卡说什么、用哪张图 ----------
+   绿（ok）：八项都正常。黄（warn）：还能聊天，有一两个小问题；大脑正在起来、小号正在重新登；打游戏模式没恢复完。
+   红（bad）：她回不了话（大脑、登 QQ、DeepSeek 任何一个出问题），或者小问题攒到三个以上。
+   「小问题」＝其余几项亮黄灯或红灯的；查不到（unk）、没开（off）、正在弄（busy）都不算。打游戏模式没恢复完算一个，那时被它关着的语音、记忆不另算。
+   后台在下东西、在补装、在修，八项本身都好：绿图，加进度条；打游戏模式开着：绿。 */
+const HEAD={voice:'发不了语音',memory:'记不住新的事',vision:'看不了视频',autostart:'开机不会自己上线',memes:'表情包没装全',deepseek:'余额快用完了',pet:'桌宠连不上她'};
+const CORE=['brain','qq','deepseek'];
+const nameOf=it=>String(it.name||'').split(' · ')[0];
+const cnNum=n=>'零一二三四五六七八九十'[n]||String(n);  // 配过桌宠多一项「桌宠」
 function summarize(S){
   const by=id=>S.items.find(i=>i.id===id)||{};
-  const probs=S.items.filter(i=>i.state==='bad'||i.state==='warn');
+  const g=S.game||{};
   const running=(S.jobs||[]).filter(j=>j.state==='running');
   const b=by('brain'), q=by('qq'), d=by('deepseek');
-  if(b.state==='bad') return {lv:'bad',chip:'她现在回不了话',head:'大脑没开',reason:b.text,fix:b.fix,mood:'worry',say:'brain',log:'brain'};
-  if(b.state==='busy') return {lv:'busy',chip:'正在起来',head:'她正在醒过来',reason:b.text,mood:'norm',say:'brainBusy'};
-  if(q.state==='bad') return {lv:'bad',chip:'她现在回不了话',head:'小号没登上 QQ',reason:q.text,fix:q.fix,mood:'worry',say:'qq',log:'qq'};
-  if(q.state==='busy') return {lv:'busy',chip:'正在重新登',head:'小号正在登',reason:q.text,mood:'norm',say:'fixing'};
-  if(d.state==='bad') return {lv:'bad',chip:'她现在回不了话',head:/余额/.test(d.text)?'余额用完了':'DeepSeek 用不了',reason:d.text,link:(d.links||[])[0],mood:'worry',say:/余额/.test(d.text)?'money':'key'};
-  const fixing=running.find(j=>!['import','diag','backup','autostart_fix'].includes(j.kind));
-  if(fixing) return {lv:'busy',chip:fixing.kind.startsWith('game')?'能聊天 · 正在切换':'能聊天 · 正在修',head:fixing.title,reason:fixing.step||'稍等一下。',mood:'norm',say:'fixing'};
+  let small=S.items.filter(i=>(i.state==='bad'||i.state==='warn')&&!(CORE.includes(i.id)&&i.state==='bad'));
+  if(g.left) small=small.filter(i=>i.id!=='voice'&&i.id!=='memory');
+  const n=small.length+(g.left?1:0), face=n>=3?'bad':n?'warn':'ok';
   const imp=running.find(j=>j.kind==='import') || (by('memes').state==='busy'?{step:by('memes').text,pct:by('memes').pct}:null);
-  if(imp) return {lv:'busy',chip:'能聊天 · 正在下东西',head:'正在补装',reason:imp.step||'放在后台下，她照常聊天。',mood:'norm',say:'busy',prog:imp};
-  const g=S.game||{};
-  if(g.left) return {lv:'warn',chip:'能聊天 · 语音和记忆还关着',head:'打游戏模式没恢复完',reason:'上次开着打游戏模式关了机，开机没恢复成：她现在只打字、不记新的事。点下面恢复。',fix:{action:'game_off',label:'恢复语音和记忆'},mood:'worry',say:'gameLeft'};
-  if(probs.length){ const f=probs[0]; return {lv:'warn',chip:`能聊天 · 有 ${probs.length} 个小问题`,head:HEAD[f.id]||f.name,reason:f.text,fix:f.fix,mood:'worry',say:f.id==='deepseek'?'lowmoney':f.id,item:f.id}; }
-  if(g.on) return {lv:'ok',chip:'在线能聊 · 打游戏模式',head:'打游戏模式开着',reason:'本机的语音和记忆先关着，显卡和内存都腾给游戏了。她照样回消息，只打字、这段时间说的事不记。打完点下面恢复，重启电脑也会自己恢复。',fix:{action:'game_off',label:'打完了，恢复'},mood:'happy',say:'game'};
-  const unk=S.items.filter(i=>i.state==='unk').length;
-  return {lv:'ok',chip:'在线能聊',head:'她好着呢',reason:unk?'能查的都正常（DeepSeek 余额这会儿没查到）。去 QQ 找她聊吧。':'八项都正常，去 QQ 找她聊吧。',mood:'happy',say:'ok'};
+  const m=(()=>{
+    if(b.state==='bad') return {face:'bad',chip:'她现在回不了话',head:/卡住/.test(b.text||'')?'大脑卡住了':'大脑没开',reason:b.text,fix:b.fix,say:'brain',log:'brain'};
+    if(b.state==='busy') return {face:'warn',chip:'正在起来',head:'她正在醒过来',reason:b.text,say:'brainBusy'};
+    if(q.state==='bad') return {face:'bad',chip:'她现在回不了话',head:'小号没登上 QQ',reason:q.text,fix:q.fix,say:'qq',log:'qq'};
+    if(q.state==='busy') return {face:'warn',chip:'正在重新登',head:'小号正在登',reason:q.text,say:'fixing',log:'qq'};
+    if(d.state==='bad'){ const money=/余额/.test(d.text||''); return {face:'bad',chip:'她现在回不了话',head:money?'余额用完了':'DeepSeek 用不了',reason:d.text,link:(d.links||[])[0],say:money?'money':'key'}; }
+    const fixing=running.find(j=>!['import','diag','backup','autostart_fix'].includes(j.kind));
+    if(fixing){ const sw=fixing.kind.startsWith('game'); return {face,chip:sw?'能聊天 · 正在切换':'能聊天 · 正在修',head:fixing.title,reason:sw?'切好了这里会自己变，她照常回消息。':'修好了这里会自己变回来。',say:'fixing',busy:true,prog:{pct:fixing.pct,step:fixing.step||'稍等一下'}}; }
+    if(n>=3){
+      const names=[...(g.left?['打游戏模式没恢复完']:[]),...small.map(nameOf)];
+      const fx=g.left?{action:'game_off',label:'恢复语音和记忆'}:(small.find(i=>i.fix)||{}).fix;
+      return {face:'bad',chip:`能聊天 · 攒了 ${n} 个问题`,head:'好几处要修',reason:`${names.join('、')}，这 ${n} 处都不太对。她还能聊天，${fx?'先点下面修一处，':''}剩下的在右边一项项点。`,fix:fx,say:'many'};
+    }
+    if(g.left) return {face,chip:'能聊天 · 语音和记忆还关着',head:'打游戏模式没恢复完',reason:'上次开着打游戏模式关了机，开机没恢复成：她现在只打字、不记新的事。点下面恢复。',fix:{action:'game_off',label:'恢复语音和记忆'},say:'gameLeft'};
+    if(small.length){ const f=small[0]; return {face,chip:`能聊天 · 有 ${n} 个小问题`,head:HEAD[f.id]||nameOf(f),reason:f.text,fix:f.fix,link:f.id==='deepseek'&&!f.fix?(f.links||[])[0]:null,say:f.id==='deepseek'?'lowmoney':f.id}; }
+    if(g.on) return {face,chip:'在线能聊 · 打游戏模式',head:'打游戏模式开着',reason:'本机的语音和记忆先关着，显卡和内存都腾给游戏了。她照样回消息，只打字、这段时间说的事不记。打完点下面恢复，重启电脑也会自己恢复。',fix:{action:'game_off',label:'打完了，恢复'},say:'game'};
+    if(imp) return {face,chip:'能聊天 · 正在下东西',head:'正在补装',reason:imp.step||'放在后台下，她照常聊天。',say:'busy'};
+    const unk=S.items.filter(i=>i.state==='unk').length;
+    return {face,chip:'在线能聊',head:'她好着呢',reason:unk?'能查的都正常（DeepSeek 余额这会儿没查到）。去 QQ 找她聊吧。':`${cnNum(S.items.length)}项都正常，去 QQ 找她聊吧。`,say:'ok'};
+  })();
+  if(imp&&!m.prog) m.prog=imp;
+  return m;
 }
 
 /* ---------- 动作 ---------- */
@@ -781,7 +787,7 @@ function runNamed(name, body){
   return act(name, body, {});
 }
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-run]'); if(!b) return;
+  const b=e.target.closest('[data-run]'); if(!b||b.disabled) return;
   e.preventDefault(); let body={}; try{ body=JSON.parse(b.dataset.body||'{}'); }catch(_){}
   if(b.dataset.hero!==undefined) return heroRun({action:b.dataset.run, body});
   runNamed(b.dataset.run, body);
@@ -790,121 +796,125 @@ document.addEventListener('click',e=>{ const b=e.target.closest('[data-ask]'); i
 
 /* ---------- 渲染 ---------- */
 let S=null;
-function renderTank(S){
+const setHTML=(el,h)=>{ if(el.dataset.h!==h){ el.innerHTML=h; el.dataset.h=h; } };
+function renderSide(S){
   const m=summarize(S);
-  $('#tank').classList.toggle('sick', m.lv==='bad'||m.lv==='warn');
-  $('#whaleSvg').setAttribute('class','mood-'+m.mood);
-  const chip=$('#chip'); chip.className='chip '+(m.lv==='busy'?'busy':m.lv);
-  chip.innerHTML=ic(m.lv==='ok'?'i-check':m.lv==='busy'?'i-refresh':'i-alert')+'<span>'+esc(m.chip)+'</span>';
-  $('#headline').textContent=m.head; $('#reason').textContent=m.reason;
+  setFace(m.face);
+  $('#chip').textContent=m.chip; $('#headline').textContent=m.head; $('#reason').textContent=m.reason||'';
   if(heroJob.id) return;
   $('#say').innerHTML=pickLine(m.say,S);
-  const a=$('#heroActs'); let h='';
-  if(m.fix) h+=`<button class="btn primary grow" data-run="${esc(m.fix.action)}" data-body='${esc(JSON.stringify(m.fix.body||{}))}' data-hero>${ic('i-wrench')}${esc(m.fix.label||'一键修复')}</button>`;
-  else if(m.link) h+=`<a class="btn primary grow" href="${esc(m.link.href)}" target="_blank" rel="noopener">${ic('i-ext')}${esc(m.link.label)}</a>`;
-  if(m.lv==='ok') h+=`<a class="btn ghost grow" href="${esc(S.backend)}/#/" target="_blank" rel="noopener">${ic('i-ext')}打开后台</a><button class="btn ghost" data-run="logs">看最近日志</button>`;
-  else if(m.lv==='busy') h+=`<button class="btn ghost grow" data-run="logs">看最近日志</button>`;
-  else h+=`<button class="btn ghost" data-run="logs" data-src="${m.log||'brain'}">看看怎么回事</button>`;
-  a.innerHTML=h;
+  let h='';
+  if(m.fix) h+=`<button class="btn primary" data-run="${esc(m.fix.action)}" data-body='${esc(JSON.stringify(m.fix.body||{}))}' data-hero>${esc(m.fix.label||'一键修复')}${ic('i-arrow')}</button>`;
+  else if(m.link) h+=`<a class="btn primary" href="${esc(m.link.href)}" target="_blank" rel="noopener">${esc(m.link.label)}${ic('i-arrow')}</a>`;
+  const g=S.game||{};
+  if(m.face==='ok'&&!m.fix&&!m.link&&!m.busy){
+    if(g.can&&!g.on) h+=`<button class="btn ghost" data-run="game_on">${ic('i-game')}要打游戏了</button>`;
+    h+=`<a class="btn ghost" href="${esc(S.backend)}/#/" target="_blank" rel="noopener">${ic('i-ext')}打开后台</a>`;
+  } else h+=`<button class="btn ghost" data-run="logs" data-src="${m.log||'brain'}">看日志</button>`;
+  setHTML($('#heroActs'),h);
   const hp=$('#heroProg');
-  if(m.prog){ prog(hp, m.prog.pct!=null?m.prog.pct:30, m.prog.step||'放在后台下'); } else if(!heroJob.id) progOff(hp);
+  if(m.prog) prog(hp, m.prog.pct!=null?m.prog.pct:30, m.prog.step||'放在后台下'); else progOff(hp);
 }
 function renderStats(S){
   const t=$('#today'); const st=S.stats||[];
   if(!st.length){ t.hidden=true; return; }
-  t.hidden=false; t.style.setProperty('--n',st.length);
-  t.innerHTML=st.map(x=>`<div><b>${esc(x.n)}<small>${esc(x.unit||'')}</small></b><span class="${x.note?'snack':''}" title="${esc(x.note||'')}">${esc(x.label)}${x.note?' · '+esc(x.note):''}</span></div>`).join('');
+  t.hidden=false;
+  setHTML(t,st.map(x=>`<div><b>${esc(x.n)}<small>${esc(x.unit||'')}</small></b><span>${esc(x.label)}${x.note?`<span class="note"> · ${esc(x.note)}</span>`:''}</span></div>`).join(''));
 }
 function renderNotice(S){
   const box=$('#noticeBox');
   if(!S.qq_upgrade){ box.innerHTML=''; return; }
-  box.innerHTML=`<div class="notice"><div class="bad-ic">${ic('i-bell')}</div><div><b>桌面 QQ 像是自动升级了，SnowLuma 还没跟上</b><span>小号掉线后可能暂时登不回来。</span></div><button class="btn sm ghost" data-goto="up">看看怎么办</button></div>`;
+  box.innerHTML=`<div class="notice">${ic('i-bell')}<div><b>桌面 QQ 像是自动升级了，SnowLuma 还没跟上</b><span>小号掉线后可能暂时登不回来。</span></div><button class="btn sm ghost" data-goto="up">看看怎么办</button></div>`;
   $('[data-goto]',box).addEventListener('click',()=>go('up'));
 }
 function itemHTML(it){
-  const wide=(it.state==='bad'||it.state==='warn')&&it.fix;
-  const pill=`<span class="pill ${it.state}">${ic(STATE_IC[it.state]||'i-minus').replace('class="ic"',it.state==='busy'?'class="ic spin"':'class="ic"')}${esc(it.pill||STATE_TX[it.state]||'')}</span>`;
+  const [nm,em]=String(it.name||'').split(' · ');
+  const fix=(it.state==='bad'||it.state==='warn')&&it.fix?`<button class="fix" data-run="${esc(it.fix.action)}" data-body='${esc(JSON.stringify(it.fix.body||{}))}' data-hero>${esc(it.fix.label||'一键修复')}${ic('i-arrow')}</button>`:'';
   const links=(it.links||[]).map(l=>`<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}${ic('i-ext')}</a>`).join('')
-    +(it.btns||[]).map(b=>`<button data-run="${esc(b.action)}">${esc(b.label)}</button>`).join('')
-    +(it.ask?`<button data-ask="${esc(it.ask)}">复制给 Agent 的话</button>`:'');
-  const fix=wide?`<div class="fixbox"><button class="btn ${it.state==='bad'?'danger':'primary'} sm" data-run="${esc(it.fix.action)}" data-body='${esc(JSON.stringify(it.fix.body||{}))}' data-hero>${ic('i-wrench')}${esc(it.fix.label||'一键修复')}</button></div>`:'';
-  const ip=(it.state==='busy'&&it.pct!=null)?`<div class="progress on iprog"><div class="bar"><i style="width:${+it.pct}%"></i></div></div>`:'';
-  return `<article class="item ${it.state}${wide?' wide':''}"><div class="ico">${ic(it.icon)}</div><div class="nm">${esc(it.name)}</div>${pill}${fix}<div class="dt"><span class="what">${esc(it.what)}</span>${esc(it.text)}</div>${links?`<div class="lk">${links}</div>`:''}${ip}</article>`;
+    +(it.btns||[]).map(b=>`<button class="lkb" data-run="${esc(b.action)}">${esc(b.label)}</button>`).join('')
+    +(it.ask?`<button class="lkb" data-ask="${esc(it.ask)}">复制给 Agent 的话</button>`:'');
+  const ip=(it.state==='busy'&&it.pct!=null)?`<div class="iprog"><i style="width:${Math.max(3,Math.min(100,+it.pct||0))}%"></i></div>`:'';
+  return `<div class="row" data-s="${esc(it.state)}" title="${esc(it.what||'')}"><div class="l"><span class="dot"></span><span class="nm">${esc(nm)}${em?`<em>${esc(em)}</em>`:''}</span><span class="lead"></span><span class="v">${esc(it.pill||STATE_TX[it.state]||'')}</span></div><div class="d">${esc(it.text)}</div>${ip}${fix||links?`<div class="lk">${fix}${links}</div>`:''}</div>`;
 }
+/* 八项照固定顺序排（跟原型一样，不按好坏挪位置）；左边那张卡已经把最要紧的挑出来了 */
+const ORDER=['brain','qq','deepseek','memory','voice','vision','memes','autostart','pet'];
 function renderItems(S){
-  const rank={bad:0,warn:1,busy:2,ok:3,unk:3,off:4};
-  const list=S.items.map((x,i)=>[x,i]).sort((a,b)=>(rank[a[0].state]-rank[b[0].state])||(a[1]-b[1])).map(x=>x[0]);
-  $('#items').innerHTML=list.map(itemHTML).join('');
+  const pos=id=>{ const i=ORDER.indexOf(id); return i<0?99:i; };
+  const list=S.items.map((x,i)=>[x,i]).sort((a,b)=>(pos(a[0].id)-pos(b[0].id))||(a[1]-b[1])).map(x=>x[0]);
+  setHTML($('#items'),list.map(itemHTML).join(''));
+  const good=S.items.filter(i=>!['bad','warn','busy'].includes(i.state)).length;
+  $('#tally').innerHTML=`${good}/${S.items.length}<span>项正常</span>`;
+  const h2=document.querySelector('#p-st .head h2'); if(h2) h2.textContent=cnNum(S.items.length)+'项检查';
 }
 function renderOps(S){
-  const pn=S.proto_name, pl=S.items.find(i=>i.id==='qq').links[0]||{href:'#',label:''};
-  const g=S.game||{};
+  const pn=S.proto_name, qi=S.items.find(i=>i.id==='qq')||{}, pl=(qi.links||[])[0]||{href:'#',label:''};
+  const g=S.game||{}, gon=g.on||g.left;
+  const ext=ic('i-ext').replace('class="ic"','class="ic ext"');
   const t=[
-    ...(g.can?[g.on||g.left?`<button class="act" data-run="game_off"><div class="ico c3">${ic('i-refresh')}</div><b>打完了，恢复</b><span>把本机的语音和记忆开回来，大约半分钟</span></button>`
-      :`<button class="act" data-run="game_on"><div class="ico c3">${ic('i-play')}</div><b>打游戏模式</b><span>先关掉本机的语音和记忆，腾出显卡和内存。她照样聊天，只打字、不记新的事</span></button>`]:[]),
-    `<button class="act" data-run="relogin"><div class="ico">${ic('i-qr')}</div><b>重新登 QQ</b><span>小号掉线了点这里。会弹出一个小窗口，照着做</span></button>`,
-    `<button class="act" data-run="restart_astrbot" ${S.cli?'':'disabled title="启动器装的，在 AstrBot 启动器里重启"'}><div class="ico c2">${ic('i-restart')}</div><b>重启大脑</b><span>${S.cli?'卡住、反应慢的时候试试，大约一分钟':'启动器装的，在 AstrBot 启动器里重启'}</span></button>`,
-    `<button class="act" data-run="restart_qq"><div class="ico c2">${ic('i-power')}</div><b>重启 ${esc(pn)}</b><span>${S.proto==='snowluma'?'在线却不回话时试试，不碰你的桌面 QQ':'在线却不回话时试试，不碰你平时用的 QQ'}</span></button>`,
-    `<button class="act" data-run="diag"><div class="ico c5">${ic('i-buoy')}</div><b>复制求助信息</b><span>打好码存到桌面，再复制一句话，发给 Agent 或群里</span></button>`,
-    `<button class="act" data-run="backup"><div class="ico c4">${ic('i-archive')}</div><b>备份到桌面</b><span>记忆、人设、设置和密钥打成一个包，换电脑用</span></button>`,
-    `<button class="act" data-run="logs"><div class="ico c3">${ic('i-log')}</div><b>看最近日志</b><span>出错的地方标红，号码自动打码</span></button>`,
-    `<a class="act" href="${esc(S.backend)}/#/" target="_blank" rel="noopener"><div class="ico">${ic('i-brain')}</div><b>打开 AstrBot 后台${ic('i-ext').replace('class="ic"','class="ic ext"')}</b><span>她的详细设置都在这，第一次要登录</span></a>`,
-    `<a class="act" href="${esc(pl.href)}" target="_blank" rel="noopener"><div class="ico">${ic('i-chat')}</div><b>打开 ${esc(pn)} 后台${ic('i-ext').replace('class="ic"','class="ic ext"')}</b><span>登 QQ 那个程序的设置页</span></a>`,
-    `<a class="act" href="${esc(S.backend)}/#/conversation" target="_blank" rel="noopener"><div class="ico c2">${ic('i-msgs')}</div><b>她跟谁聊过什么${ic('i-ext').replace('class="ic"','class="ic ext"')}</b><span>翻翻她的聊天记录</span></a>`,
+    `<button class="op" data-run="restart_astrbot" ${S.cli?'':'disabled title="启动器装的，在 AstrBot 启动器里重启"'}>${ic('i-power')}<b>重启大脑</b><small>${S.cli?'卡住、反应慢的时候试试，大约一分钟':'启动器装的，在 AstrBot 启动器里重启'}</small></button>`,
+    `<button class="op" data-run="relogin">${ic('i-qq')}<b>重新登 QQ</b><small>小号掉线了点这里。会弹出一个小窗口，照着做</small></button>`,
+    `<button class="op" data-run="restart_qq">${ic('i-restart')}<b>重启 ${esc(pn)}</b><small>${S.proto==='snowluma'?'在线却不回话时试试，不碰你的桌面 QQ':'在线却不回话时试试，不碰你平时用的 QQ'}</small></button>`,
+    `<button class="op" data-run="logs">${ic('i-log')}<b>看最近日志</b><small>出错的地方标红，号码自动打码</small></button>`,
+    `<button class="op" data-run="diag">${ic('i-buoy')}<b>复制求助信息</b><small>打好码存到桌面，再复制一句话，发给 Agent 或群里</small></button>`,
+    `<button class="op" data-run="backup">${ic('i-box')}<b>备份到桌面</b><small>记忆、人设、设置和密钥打成一个包，换电脑用</small></button>`,
+    `<a class="op" href="${esc(S.backend)}/#/" target="_blank" rel="noopener">${ic('i-brain')}<b>打开 AstrBot 后台${ext}</b><small>她的详细设置都在这，第一次要登录</small></a>`,
+    `<a class="op" href="${esc(pl.href)}" target="_blank" rel="noopener">${ic('i-chat')}<b>打开 ${esc(pn)} 后台${ext}</b><small>登 QQ 那个程序的设置页</small></a>`,
+    `<a class="op" href="${esc(S.backend)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}<b>她跟谁聊过什么${ext}</b><small>翻翻她的聊天记录</small></a>`,
+    g.can?`<div class="op game">${ic('i-game')}<div class="grow"><b>打游戏模式</b><small>${g.left?'上次开着它关了机，开机没恢复成：本机的语音和记忆还关着。点右边的开关恢复，大约半分钟。':g.on?'开着：本机的语音和记忆先关着，显卡和内存腾给游戏。她照样回消息，只打字、这段时间说的事不记。打完点右边的开关恢复。':'先关掉本机的语音和记忆，腾出显卡和内存。她照样聊天，只打字、不记新的事；重启电脑也会自己恢复。'}</small></div><button class="switch${gon?' on':''}" role="switch" aria-checked="${gon?'true':'false'}" aria-label="${gon?'打完了，恢复':'打游戏模式'}" title="${gon?'打完了，恢复':'开打游戏模式'}" data-run="${gon?'game_off':'game_on'}"></button></div>`:'',
   ];
-  const html=t.join(''); if($('#ops').dataset.h!==html){ $('#ops').innerHTML=html; $('#ops').dataset.h=html; }
+  setHTML($('#ops'),t.join(''));
   $('#bkPath').textContent=S.paths.backend;
 }
-const FEAT={voice:['i-mic','发语音'],memory:['i-book','记忆'],memes:['i-smile','表情包'],video:['i-video','看视频']};
 function renderFeatures(S){
   const by=id=>S.items.find(i=>i.id===id)||{};
   const base=S.backend;
-  // 装机清单
-  const tags=S.items.map(it=>`<span class="tag ${it.state}">${ic(STATE_IC[it.state]||'i-minus')}${esc(it.name.split(' · ')[0])}${it.name.includes(' · ')?'：'+esc(it.name.split(' · ')[1]):''}</span>`).join('');
-  const probs=S.items.filter(i=>i.state==='bad'||i.state==='warn');
-  const cost=S.install.cost?`<dt>装机花了</dt><dd>DeepSeek 余额从 ¥${esc(S.install.cost.start)} 到 ¥${esc(S.install.cost.now)}，花了 ¥${esc(S.install.cost.spent)}（装的过程本身也在用你的 DeepSeek）</dd>`:'';
-  const secs=(S.install.secrets||[]).map(f=>`<span class="tag" title="${esc(f.what)}">${ic('i-lock')}${esc(f.name)}${f.what?' · '+esc(f.what):''}</span>`).join('');
-  $('#inst').innerHTML=`<h3>${ic('i-doc')}装机清单</h3><dl>
-    <dt>装了什么</dt><dd>${tags}</dd>
-    <dt>没装好的</dt><dd>${probs.length?probs.map(p=>esc(p.name.split(' · ')[0])).join('、')+'：去「她的状态」点修复，或者在下面补装':'没有'}</dd>${cost}
-    <dt>密钥和密码</dt><dd>都在 <code>${esc(S.paths.private)}</code><button class="btn sm ghost" data-folder2="private">${ic('i-folder')}打开</button></dd>
-    <dt></dt><dd>${secs}</dd></dl>`;
-  $$('[data-folder2]',$('#inst')).forEach(b=>b.addEventListener('click',()=>folder(b.dataset.folder2)));
   // 每项功能
   const fmap={}; (S.features||[]).forEach(f=>fmap[f.block]=f);
-  const row=(icn,title,sub,links,btn,extra)=>`<div class="row"><div class="ico">${ic(icn)}</div><div><b>${title}</b><div class="sub">${sub}</div>${links?`<div class="lk">${links}</div>`:''}${extra||''}</div><div class="rbtn">${btn||''}</div></div>`;
+  const row=(title,sub,links,btn,extra)=>`<div class="feat"><div><b>${title}</b><small>${sub}</small>${links?`<div class="lk">${links}</div>`:''}${extra||''}</div><div class="rbtn">${btn||''}</div></div>`;
   const ext=(label,href)=>`<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}${ic('i-ext')}</a>`;
   const fb=(blk,itemId)=>{ const f=fmap[blk]||{}; const it=by(itemId);
     if(!f.chosen) return {btn:`<button class="btn sm ghost" data-ask="${blk==='video'?'video':blk}">${ic('i-copy')}交给 Agent 加上</button>`,extra:''};
-    if(f.running) return {btn:`<span class="pill busy">${ic('i-refresh').replace('class="ic"','class="ic spin"')}补装中</span>`,extra:`<div class="progress on" style="margin-top:6px"><div class="bar"><i style="width:${f.pct!=null?+f.pct:30}%"></i></div><div class="step"><span class="lbl">${esc(f.step||'')}</span><span class="pct">${f.pct!=null?f.pct+'%':''}</span></div></div>`};
+    if(f.running) return {btn:`<span class="pill busy">${ic('i-refresh').replace('class="ic"','class="ic spin"')}补装中</span>`,extra:`<div class="progress on"><div class="bar"><i style="width:${f.pct!=null?+f.pct:30}%"></i></div><div class="step"><span class="lbl">${esc(f.step||'')}</span><span class="pct">${f.pct!=null?f.pct+'%':''}</span></div></div>`};
     const res=f.result?`<div class="res ${f.result_status==='ok'?'ok':(f.result_status==='fail'||f.result_status==='partial')?'bad':''}">上次补装（${esc(f.at)}）：${esc(f.result)}</div>`:'';
-    const fx=it.fix&&it.fix.action!=='import'?`<button class="btn sm primary" data-run="${esc(it.fix.action)}" data-body='${esc(JSON.stringify(it.fix.body||{}))}' data-hero>${ic('i-wrench')}${esc(it.fix.label||'一键修复')}</button>`:'';
+    const fx=it.fix&&it.fix.action!=='import'?`<button class="btn sm primary" data-run="${esc(it.fix.action)}" data-body='${esc(JSON.stringify(it.fix.body||{}))}' data-hero>${esc(it.fix.label||'一键修复')}</button>`:'';
     const imp=`<button class="btn sm ${it.fix&&it.fix.action==='import'?'primary':'ghost'}" data-run="import" data-body='{"block":"${blk}"}' title="把这项的插件和设置重新装一遍，放后台跑；聊天记录和记忆不动">${ic('i-refresh')}补装</button>`;
     return {btn:fx+imp,extra:res};
   };
   const v=fb('voice','voice'), m=fb('memory','memory'), e=fb('memes','memes'), vd=fb('video','vision');
   const auto=by('autostart');
-  $('#feats').innerHTML=[
-    row('i-mic','发语音',esc(by('voice').name.split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||''),ext('换模型、语音',base+'/#/providers'),v.btn,v.extra),
-    row('i-book','记忆',esc(by('memory').text),S.answers.memory?ext('看她记住了什么',base+'/#/plugin-view/astrbot_plugin_livingmemory/dashboard'):'',m.btn,m.extra),
-    row('i-smile','表情包',esc(by('memes').text)+(S.meme_freq?'。下面选她发多少（她不是每句都挑表情，「多」就是挑中就发）':''),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,
+  setHTML($('#feats'),[
+    row('发语音',esc(String(by('voice').name||'').split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||''),ext('换模型、语音',base+'/#/providers'),v.btn,v.extra),
+    row('记忆',esc(by('memory').text),S.answers.memory?ext('看她记住了什么',base+'/#/plugin-view/astrbot_plugin_livingmemory/dashboard'):'',m.btn,m.extra),
+    row('表情包',esc(by('memes').text)+(S.meme_freq?'。下面选她发多少（她不是每句都挑表情，「多」就是挑中就发）':''),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,
       e.extra+(S.meme_freq?`<div class="seg" role="group" aria-label="表情包发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.meme_freq===k?'on':''}" aria-pressed="${S.meme_freq===k}" data-run="meme_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
-    row('i-video','看视频、听语音',esc(by('vision').text),S.answers.video?ext('截几张、看多长',base+'/#/extension?open_config=astrbot_plugin_dafeiyu_video'):'',vd.btn,vd.extra),
-    row('i-users','群里插话','插得越多越容易被风控（QQ 的安全检查），别调太高。群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句。下面选她在群里回谁的时候怎么标出来',ext('插不插、插多少',base+'/#/extension?open_config=astrbot_plugin_group_chat_plus'),'',
+    row('看视频、听语音',esc(by('vision').text),S.answers.video?ext('截几张、看多长',base+'/#/extension?open_config=astrbot_plugin_dafeiyu_video'):'',vd.btn,vd.extra),
+    row('主动找你聊','隔一阵没聊，她会自己来找你',ext('多久一次',base+'/#/extension?open_config=astrbot_plugin_proactive_chat'),''),
+    row('发说说','用小号在 QQ 空间发动态',ext('设置、看发过的',base+'/#/plugin-view/astrbot_plugin_qzone/dashboard'),''),
+    row('开机自启',esc(auto.text),'',auto.fix?`<button class="btn sm primary" data-run="autostart_fix">${esc(auto.fix.label)}</button>`:auto.state==='ok'?`<span class="pill ok">${ic('i-check')}设好了</span>`:`<span class="pill ${esc(auto.state)}">${ic(STATE_IC[auto.state]||'i-minus')}${esc(STATE_TX[auto.state]||'')}</span>`),
+    '<div class="sub">群里</div>',
+    row('群里插话','插得越多越容易被风控（QQ 的安全检查），别调太高。群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句。下面选她在群里回谁的时候怎么标出来',ext('插不插、插多少',base+'/#/extension?open_config=astrbot_plugin_group_chat_plus'),'',
       `<div class="seg" role="group" aria-label="群里回复时">${[['off','不标'],['mention','@ 对方'],['quote','引用那句'],['both','都要']].map(([k,l])=>`<button class="${S.group_reply===k?'on':''}" aria-pressed="${S.group_reply===k}" data-run="group_reply" data-body='{"mode":"${k}"}'>${l}</button>`).join('')}</div>`),
-    row('i-heartmsg','主动找你聊','隔一阵没聊，她会自己来找你',ext('多久一次',base+'/#/extension?open_config=astrbot_plugin_proactive_chat'),''),
-    row('i-feather','发说说','用小号在 QQ 空间发动态',ext('设置、看发过的',base+'/#/plugin-view/astrbot_plugin_qzone/dashboard'),''),
-    row('i-power','开机自启',esc(auto.text),'',auto.fix?`<button class="btn sm primary" data-run="autostart_fix">${ic('i-wrench')}${esc(auto.fix.label)}</button>`:`<span class="pill ok">${ic('i-check')}设好了</span>`),
-  ].join('');
-  const chips=`<a href="${esc(base)}/#/persona" target="_blank" rel="noopener">${ic('i-persona')}她的性格、说话方式（点「大肥鱼」那张卡片改）</a><a href="${esc(base)}/#/providers" target="_blank" rel="noopener">${ic('i-bolt')}换模型、语音</a><a href="${esc(base)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}她跟谁聊过什么</a><a href="${esc(base)}/#/console" target="_blank" rel="noopener">${ic('i-log')}出问题了看日志</a>`;
-  if($('#chips').dataset.h!==chips){ $('#chips').innerHTML=chips; $('#chips').dataset.h=chips; }
+  ].join(''));
+  const chips=`<a class="btn sm ghost" href="${esc(base)}/#/persona" target="_blank" rel="noopener">${ic('i-persona')}她的性格、说话方式（点「大肥鱼」那张卡片改）</a><a class="btn sm ghost" href="${esc(base)}/#/providers" target="_blank" rel="noopener">${ic('i-bolt')}换模型、语音</a><a class="btn sm ghost" href="${esc(base)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}她跟谁聊过什么</a><a class="btn sm ghost" href="${esc(base)}/#/console" target="_blank" rel="noopener">${ic('i-log')}出问题了看日志</a>`;
+  setHTML($('#chips'),chips);
+  // 装机清单
+  const tags=S.items.map(it=>`<span class="chk" data-s="${esc(it.state)}"><span class="dot"></span>${esc(it.name.split(' · ')[0])}${it.name.includes(' · ')?'：'+esc(it.name.split(' · ')[1]):''}</span>`).join('');
+  const probs=S.items.filter(i=>i.state==='bad'||i.state==='warn');
+  const cost=S.install.cost?`<dt>装机花了</dt><dd>DeepSeek 余额从 ¥${esc(S.install.cost.start)} 到 ¥${esc(S.install.cost.now)}，花了 ¥${esc(S.install.cost.spent)}（装的过程本身也在用你的 DeepSeek）</dd>`:'';
+  const secs=(S.install.secrets||[]).map(f=>`<span class="chk" title="${esc(f.what)}">${ic('i-lock')}${esc(f.name)}${f.what?' · '+esc(f.what):''}</span>`).join('');
+  const inst=`<dl>
+    <dt>装了什么</dt><dd>${tags}</dd>
+    <dt>没装好的</dt><dd>${probs.length?probs.map(p=>esc(p.name.split(' · ')[0])).join('、')+'：去「她的状态」点修复，或者在上面补装':'没有'}</dd>${cost}
+    <dt>密钥和密码</dt><dd>都在 <code>${esc(S.paths.private)}</code><button class="btn sm ghost" data-folder2="private">${ic('i-folder')}打开</button></dd>
+    <dt></dt><dd>${secs}</dd></dl>`;
+  if($('#inst').dataset.h!==inst){ setHTML($('#inst'),inst); $$('[data-folder2]',$('#inst')).forEach(b=>b.addEventListener('click',()=>folder(b.dataset.folder2))); }
 }
 function upAsk(u){ return `用大肥鱼的安装 Skill，帮我把 ${u.name} 从 ${u.local} 更新到 ${u.latest}：先备份，只换程序，我的设置、记忆和登录都别动。`; }
 function renderUpdates(S){
   const ups=S.updates||[]; let n=ups.filter(u=>u.state==='new').length+(S.qq_upgrade?1:0);
   const N=$('#upN'); N.hidden=!n; N.textContent=n||'';
   const sl=ups.find(u=>u.id==='snowluma');
-  $('#qqwarnBox').innerHTML=S.qq_upgrade?`<div class="card qqwarn"><h3>${ic('i-bell')}桌面 QQ 像是自动升级了，SnowLuma 还没跟上</h3>
+  $('#qqwarnBox').innerHTML=S.qq_upgrade?`<div class="qqwarn"><h3>${ic('i-bell')}桌面 QQ 像是自动升级了，SnowLuma 还没跟上</h3>
     <p>SnowLuma 是跟着 QQ 版本做的，QQ 自己升级以后可能挂不上。她现在要是还在线，先不用管；掉线后登不回来的话，二选一：</p>
     <div class="opts">
       <button class="opt" data-askup="sl"><b>等 SnowLuma 出新版 <span class="tagok">建议</span></b><span>${sl&&sl.state==='new'?`新版 ${esc(sl.latest)} 已经出了，复制一句话让 Agent 换上（只换程序，登录和设置都留着）。`:'它一般更新很勤，出了新版这里会提醒你，再复制一句话交给 Agent 换上。'}</span><span class="go">${sl&&sl.state==='new'?'复制给 Agent 的话':'好，先等等'}</span></button>
@@ -914,16 +924,18 @@ function renderUpdates(S){
     if(k==='sl'){ if(sl&&sl.state==='new') copy(upAsk(sl),null,'已复制，粘到 DeepSeek Harness 里发出去'); else toast('好，出了新版这里会提醒你'); }
     else copy(ASKS.find(a=>a[1].startsWith('QQ 升级'))?.[2].replace(/\{=?[^}]*\}/g,'')||'',null,'已复制，粘到 DeepSeek Harness 里发出去'); }));
   const row=u=>{ let side;
-    if(u.state==='new') side=u.id==='skill'?`<button class="btn sm primary side" data-run="skill_update">${ic('i-refresh')}一键更新</button>`:`<button class="btn sm primary side" data-up="${esc(u.id)}">${ic('i-copy')}复制给 Agent 的话</button>`;
-    else if(u.state==='latest') side=`<span class="pill ok side">${ic('i-check')}最新</span>`;
-    else side=`<span class="pill unk side">${ic('i-minus')}查不到</span>`;
-    const ver=u.state==='new'?`${esc(u.local)} → <i>${esc(u.latest)}</i>`:esc(u.local||'');
-    const d=u.state==='new'&&u.id==='skill'?`有新版${u.notes&&u.notes.length?'，改了：'+u.notes.map(esc).join('；'):''}。点一下就换上，大约半分钟，她照常聊天。`
-      :u.state==='new'?`${esc(u.what)}有新版。升级前 Agent 会先备份，升级时她会下线一两分钟。`:u.state==='latest'?`${esc(u.what)}已经是最新。`:`${esc(u.what)}这会儿查不到最新版（网络不通），过会儿再看。`;
-    return `<div class="upd"><div class="ico">${ic(u.icon)}</div><div><b>${esc(u.name)}</b><span class="ver">${ver}</span></div><span class="d">${d}</span>${side}</div>`; };
-  const wb={id:'wb',name:'大肥鱼工作台',icon:'i-toggle',what:'这个窗口。',local:S.version,state:'local'};
-  $('#upds').innerHTML=(ups.map(row).join('')||`<div class="upd"><div class="ico">${ic('i-refresh')}</div><div><b>正在查新版本</b></div><span class="d">第一次打开要查一会儿（GitHub 和 PyPI），不影响别的。</span></div>`)
-    +(ups.some(u=>u.id==='skill')?'':`<div class="upd"><div class="ico">${ic(wb.icon)}</div><div><b>${wb.name}</b><span class="ver">${esc(wb.local)}</span></div><span class="d">跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。</span></div>`);
+    if(u.state==='new') side=u.id==='skill'?`<button class="btn sm primary" data-run="skill_update">一键更新</button>`:`<button class="btn sm ghost" data-up="${esc(u.id)}">${ic('i-copy')}复制给 Agent 的话</button>`;
+    else if(u.state==='latest') side=`<span class="tag">最新</span>`;
+    else if(u.state==='local') side='<span></span>';
+    else side=`<span class="tag">查不到</span>`;
+    const ver=u.state==='new'?`${esc(u.local)} → <b>${esc(u.latest)}</b>`:esc(u.local||'');
+    const notes=u.state==='new'&&u.id==='skill'&&u.notes&&u.notes.length?`<ul class="notes">${u.notes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'';
+    const d=u.state==='new'&&u.id==='skill'?`有新版，点一下就换上，大约半分钟，她照常聊天。${notes?'这一版改了：':''}`
+      :u.state==='new'?`${esc(u.what)}有新版。升级前 Agent 会先备份，升级时她会下线一两分钟。`:u.state==='latest'?`${esc(u.what)}已经是最新。`:u.state==='local'?esc(u.what):`${esc(u.what)}这会儿查不到最新版（网络不通），过会儿再看。`;
+    return `<div class="upd"><div><b>${esc(u.name)}</b><span class="d">${d}</span>${notes}</div><span class="ver">${ver}</span>${side}</div>`; };
+  const wb={id:'wb',name:'大肥鱼工作台',what:'这个窗口。跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。',local:S.version,state:'local'};
+  $('#upds').innerHTML=(ups.map(row).join('')||`<div class="upd"><div><b>正在查新版本</b><span class="d">第一次打开要查一会儿（GitHub 和 PyPI），不影响别的。</span></div><span></span><span></span></div>`)
+    +(ups.some(u=>u.id==='skill')?'':row(wb));
   $$('[data-up]').forEach(b=>b.addEventListener('click',()=>{ const u=ups.find(x=>x.id===b.dataset.up); copy(upAsk(u),b,'已复制，粘到 DeepSeek Harness 里发出去'); }));
   $('#upAt').textContent=S.updates_at?`上次查：${new Date(S.updates_at*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} · 每 6 小时查一次`:'正在查……';
 }
@@ -941,13 +953,13 @@ const ASKS=[
   ['i-x','卸载大肥鱼','用大肥鱼的安装 Skill，帮我把大肥鱼卸干净：先列清单给我看，问我要不要先备份，我回「确认」了再删。'],
 ];
 const ASK_NAPCAT=['i-chat','小号老是掉线','用大肥鱼的安装 Skill，我的小号老是掉线，帮我查查原因，先只看不改，查完告诉我怎么办。'];
-const ASK_EXTRA={memory:'用大肥鱼的安装 Skill，帮我给大肥鱼加上记忆功能：先讲清楚要装什么、多大、花不花钱，我同意了再装。',voice:'用大肥鱼的安装 Skill，帮我给大肥鱼加上发语音：先讲清楚有哪几种、花不花钱，我挑了再装。',video:'用大肥鱼的安装 Skill，帮我给大肥鱼加上看视频（要能听懂视频里说的话）：先讲清楚要下多大，我同意了再装。',bge:'大肥鱼的记忆模型 bge-m3 不见了。用大肥鱼的安装 Skill 帮我重新下好，再把记忆打开。'};
+const ASK_EXTRA={memory:'用大肥鱼的安装 Skill，帮我给大肥鱼加上记忆功能：先讲清楚要装什么、多大、花不花钱，我同意了再装。',voice:'用大肥鱼的安装 Skill，帮我给大肥鱼加上发语音：先讲清楚有哪几种、花不花钱，我挑了再装。',video:'用大肥鱼的安装 Skill，帮我给大肥鱼加上看视频（要能听懂视频里说的话）：先讲清楚要下多大，我同意了再装。',bge:'大肥鱼的记忆模型 bge-m3 不见了。用大肥鱼的安装 Skill 帮我重新下好，再把记忆打开。',memfix:'大肥鱼的工作台说记忆没接好，她记不住事。用大肥鱼的安装 Skill 帮我看看是缺硅基流动的密钥、还是本机记忆模型没下；要花钱或下大文件先问我，不想弄就帮我把记忆关掉。',hear:'大肥鱼看视频听不到声音，工作台说识别模型没装好。用大肥鱼的安装 Skill 帮我补装（install-asr.ps1，先走国内 ModelScope）；还是下不动就告诉我怎么用浏览器下。',pet:'大肥鱼的工作台说桌宠连不上她。用大肥鱼的安装 Skill 帮我看看（setup-pet.ps1 -Check），能修就帮我修好。'};
 function renderAsks(S){
   const list=ASKS.map(a=>a[1].startsWith('QQ 升级')&&S.proto!=='snowluma'?ASK_NAPCAT:a);
   const box=$('#asks'); box.innerHTML='';
-  list.forEach(a=>{ const el=document.createElement('article'); el.className='ask';
+  list.forEach(a=>{ const el=document.createElement('div'); el.className='ask';
     const body=esc(a[2]).replace(/\{(=?)([^}]+)\}/g,(m,f,p)=>`<span class="blank" contenteditable="true" data-ph="${p}">${f?p:''}</span>`);
-    el.innerHTML=`<header>${ic(a[0])}${esc(a[1])}</header><p>${body}</p><footer><button class="btn sm ghost">${ic('i-copy')}复制这句</button></footer>`;
+    el.innerHTML=`<b>${esc(a[1])}</b><p>${body}</p><button class="btn sm ghost">${ic('i-copy')}复制这句</button>`;
     $('button',el).addEventListener('click',e=>copy(textOf($('p',el)),e.currentTarget,'已复制，粘到 DeepSeek Harness 里发出去')); box.appendChild(el); });
 }
 function textOf(p){ let s=''; p.childNodes.forEach(n=>{ if(n.nodeType===3) s+=n.textContent; else if(n.classList&&n.classList.contains('blank')) s+=(n.textContent.trim()||'……'); else s+=n.textContent; }); return s; }
@@ -965,32 +977,37 @@ function renderFAQ(S){
     ['换电脑、重装系统前？','先点「备份到桌面」，把那个 zip 拷走。新电脑上照教程装到能聊天，再去「交给 Agent」复制「用备份还原」那句。备份里有你的密钥，别发给别人。'],
     ['这个窗口关了会怎样？','不影响她。工作台只是看看、修修，关了她照常在 QQ 上聊。想再看就双击桌面「大肥鱼工作台」。'],
   ];
-  $('#faq').innerHTML=faq.map((f,i)=>`<details ${i===0?'open':''}><summary>${f[0]}${ic('i-chev')}</summary><p>${f[1]}</p></details>`).join('');
+  $('#faq').innerHTML=faq.map((f,i)=>`<details ${i===0?'open':''}><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('');
 }
 function renderHelp(S){
   $('#hpDir').textContent=S.dir; $('#hpBk').textContent=S.paths.backend;
   $('#vers').innerHTML=(S.versions||[]).map(v=>`<span>${esc(v[0])}</span>${esc(v[1])}`).join('');
 }
 
+/* 右上角「N 秒前查过」 */
+let lastOk=0;
+function agoTick(){ if(!lastOk||$('#agoBox').classList.contains('down')) return; const s=Math.round((Date.now()-lastOk)/1000); $('#ago').textContent=s<3?'刚刚查过':s<60?`${s} 秒前查过`:`${Math.floor(s/60)} 分钟前查过`; }
+setInterval(agoTick,1000);
+
 let once=false;
 function render(s){
   S=s;
-  $('#tankDir').textContent=S.dir; $('#ver').textContent='v'+S.version.split('.').slice(0,2).join('.');
-  $('#checked').classList.remove('down'); $('#ago').textContent='刚刚查过 · 每 10 秒自动查';
+  $('#brandSub').textContent='v'+S.version.split('.').slice(0,2).join('.')+' · '+S.dir; $('#brandSub').title=S.dir;
+  $('#agoBox').classList.remove('down'); lastOk=Date.now(); agoTick();
   $('#consoleLink').href=S.backend+'/#/console';
   $('#logSrcQQ').textContent=S.proto_name;
-  if(!once){ once=true; renderAsks(S); renderFAQ(S); }
-  renderTank(S); renderStats(S); renderNotice(S); renderItems(S); renderOps(S); renderFeatures(S); renderUpdates(S); renderHelp(S);
+  if(!once){ once=true; renderAsks(S); renderFAQ(S); setTimeout(()=>$('#items').classList.remove('intro'),1500); }
+  renderSide(S); renderStats(S); renderNotice(S); renderItems(S); renderOps(S); renderFeatures(S); renderUpdates(S); renderHelp(S);
 }
 function showDown(kind){
-  $('#checked').classList.add('down');
+  $('#agoBox').classList.add('down');
   $('#ago').textContent=kind==='token'?'请从桌面重新打开':'连不上工作台的小服务';
   if(heroJob.id) return;
-  $('#tank').classList.add('sick'); $('#whaleSvg').setAttribute('class','mood-worry');
-  $('#chip').className='chip off'; $('#chip').innerHTML=ic('i-minus')+'<span>工作台停了</span>';
+  setFace('warn','idle');
+  $('#chip').textContent='工作台停了';
   $('#headline').textContent=kind==='token'?'请从桌面打开':'工作台的小服务停了';
   $('#reason').textContent=kind==='token'?'这个页面要从桌面「大肥鱼工作台」打开才能用。':'她本身不受影响。关掉这个窗口，再双击桌面「大肥鱼工作台」就好。';
-  $('#say').innerHTML=pickLine('down',S); $('#heroActs').innerHTML=''; progOff($('#heroProg'));
+  $('#say').innerHTML=pickLine('down',S); setHTML($('#heroActs'),''); progOff($('#heroProg'));
 }
 
 /* ---------- 轮询 ---------- */
@@ -1015,7 +1032,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) poll(); 
 let logSrc='brain', logFilter='all', logData=null;
 function openLog(src){ closeAll(); if(src) setSrc(src); $('#scrim').classList.add('on'); $('#logDrawer').classList.add('on'); loadLogs(); }
 function setSrc(s){ logSrc=s; $$('#logSrc button').forEach(x=>x.classList.toggle('on',x.dataset.s===s)); }
-document.addEventListener('click',e=>{ const b=e.target.closest('[data-run="logs"]'); if(b){ e.stopImmediatePropagation(); openLog(b.dataset.src); } },true);
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-run="logs"]'); if(b){ e.preventDefault(); e.stopImmediatePropagation(); openLog(b.dataset.src); } },true);
 async function loadLogs(){
   $('#logSum').className='logsum'; $('#logSum').innerHTML=ic('i-refresh')+'<span>正在读……</span>'; $('#logs').innerHTML='';
   try{ logData=await api('/api/logs?src='+logSrc); }catch(e){ logData={missing:'读不到日志：工作台的小服务没应答。',lines:[]}; }
@@ -1034,9 +1051,6 @@ function renderLogs(){
 $$('#logSeg button').forEach(b=>b.addEventListener('click',()=>{ $$('#logSeg button').forEach(x=>x.classList.toggle('on',x===b)); logFilter=b.dataset.f; renderLogs(); }));
 $$('#logSrc button').forEach(b=>b.addEventListener('click',()=>{ setSrc(b.dataset.s); loadLogs(); }));
 $('#copyLogs').addEventListener('click',e=>{ const d=logData||{lines:[]}; copy(d.lines.slice().reverse().map(l=>`${l.t} [${(KC[l.lv]||KC.info)[1]}] ${l.m}`).join('\n'),e.currentTarget); });
-
-/* ---------- 气泡 ---------- */
-const bb=$('#bubbles'); for(let i=0;i<9;i++){ const b=document.createElement('i'); b.className='bub'; const s=6+Math.random()*12; b.style.cssText=`width:${s}px;height:${s}px;left:${8+Math.random()*84}%;animation-duration:${9+Math.random()*9}s;animation-delay:${-Math.random()*16}s`; bb.appendChild(b); }
 
 poll();
 })();

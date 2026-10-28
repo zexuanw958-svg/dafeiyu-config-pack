@@ -1,0 +1,9 @@
+{
+  "name": "astrbot_plugin_dafeiyu_petlink",
+  "what": "电脑桌宠和你的 QQ 私聊互相知道刚聊过什么，桌宠里定的提醒发到 QQ 私聊",
+  "always_reinstall": true,
+  "opt_in": "pet",
+  "config": {
+    "owner_session": "{主人会话}"
+  }
+}

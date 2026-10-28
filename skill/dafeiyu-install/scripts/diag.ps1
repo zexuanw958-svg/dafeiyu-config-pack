@@ -153,23 +153,23 @@ if (-not (Test-Path $keyFile)) {
     $key = $null; $kv = $null
 }
 
-# 4 记忆
+# 4 记忆：看实际接线（插件指向哪个记忆模型、在线的有没有 key、本机的模型在不在），不光看 answers.json。
+# 以前选了 2 就写「正常」，10-28 群友那台插件配的是硅基流动、key 空着也是「正常」。插件在后台开没开这里看不出来（工作台和 astr_setup.py status 看得到）
 $mem = $ans['memory']
-if ($mem -eq '1') {
-    if (Listening 11434) {
-        $models = @()
-        try { $models = @((Invoke-RestMethod 'http://127.0.0.1:11434/api/tags' -TimeoutSec 5).models | ForEach-Object { $_.name }) } catch {}
-        if ($models | Where-Object { $_ -like 'bge-m3*' }) { Check '正常' '记忆（本机 Ollama）' 'Ollama 开着，bge-m3 在' }
-        else {
-            Check '出问题' '记忆（本机 Ollama）' "Ollama 开着，没找到 bge-m3（有：$($models -join '、')）"
-            Problem 'MEM-NOMODEL' '记不住新的事' 'Ollama 开着，但记忆模型 bge-m3 不在'
-        }
-    } else {
-        Check '出问题' '记忆（本机 Ollama）' 'Ollama 没开（11434 没在听）'
-        Problem 'MEM-OFF' '记不住新的事' 'Ollama 没开（11434 没在听）'
+$astrData = Find-AstrDataDir $Dir
+$mw = Get-MemoryWiring $astrData
+$mwName = if ($mw.local) { '记忆（本机 Ollama）' } elseif ($mw.providerId -match '硅基|siliconflow') { '记忆（硅基流动）' } else { '记忆' }
+if ($mem -eq '0' -or (-not $mem -and $mw.problem -in 'no-plugin', 'no-provider')) { Check '没开' '记忆' $(if ($mem -eq '0') { '装的时候选了先不要' } else { '装的时候没选' }) }
+else {
+    switch ($mw.problem) {
+        '' { Check '正常' $mwName $(if ($mw.local) { "Ollama 开着，$($mw.model) 在" } else { "在线服务，不用开（$($mw.providerId)，有 key）" }) }
+        'no-plugin' { Check '出问题' '记忆' '记忆插件没装上'; Problem 'MEM-NOPROVIDER' '记不住事' '选了记忆，但记忆插件没装上' }
+        'no-provider' { Check '出问题' '记忆' '记忆插件没指向记忆模型'; Problem 'MEM-NOPROVIDER' '记不住事' '记忆插件没指向记忆模型（上次没接好）' }
+        'no-key' { Check '出问题' $mwName "记忆模型 $($mw.providerId) 是在线的，但 key 是空的"; Problem 'MEM-NOKEY' '记不住事' '记忆接的是在线服务（硅基流动），但没填 key' }
+        'ollama-off' { Check '出问题' $mwName 'Ollama 没开（11434 没在听）'; Problem 'MEM-OFF' '记不住新的事' 'Ollama 没开（11434 没在听）' }
+        'no-model' { Check '出问题' $mwName "Ollama 开着，没找到 $($mw.model)"; Problem 'MEM-NOMODEL' '记不住新的事' "Ollama 开着，但记忆模型 $($mw.model) 不在" }
     }
-} elseif ($mem -eq '2') { Check '正常' '记忆（硅基流动）' '在线服务，不用开' }
-else { Check '没开' '记忆' '装的时候没选' }
+}
 
 # 5 语音
 $voice = $ans['voice']
@@ -194,8 +194,18 @@ if ($ans['video'] -eq '1') {
     if (-not (Test-Path $ff)) {
         Check '出问题' '看图看视频' '找不到 ffmpeg'
         Problem 'VIDEO-NOFFMPEG' '看不了视频' '找不到 ffmpeg'
-    } elseif (Test-Path "$asr\sherpa-onnx-offline.exe") { Check '正常' '看图看视频' ('ffmpeg 在，识别模型在' + $(if (Test-Path "$asr\funasr-nano\llm.int8.onnx") { '（含增强版）' })) }
-    else { Check '正常' '看图看视频' 'ffmpeg 在；识别模型没装（听不到视频里说的话）' }
+    } elseif ((Test-Path "$asr\sherpa-onnx-offline.exe") -and (Test-Path "$asr\tokens.txt") -and (Get-Item "$asr\model.int8.onnx" -ErrorAction SilentlyContinue).Length -ge 200MB) {
+        Check '正常' '看图看视频' ('ffmpeg 在，本机识别模型在' + $(if (Test-Path "$asr\funasr-nano\llm.int8.onnx") { '（含增强版）' }))
+    } else {
+        # 以前只看识别程序在不在：老版本安装脚本断了会在 asr 里留半截模型，也算「在」
+        $vk = ''; try { $vk = "$((Get-Content -Raw -Encoding UTF8 "$astrData\config\astrbot_plugin_dafeiyu_video_config.json" | ConvertFrom-Json).asr_key)".Trim() } catch {}
+        $half = Test-Path "$asr\model.int8.onnx"
+        if ($vk) { Check '正常' '看图看视频' 'ffmpeg 在；视频里的话用硅基流动在线识别' }
+        else {
+            Check '要注意' '看图看视频' ('ffmpeg 在；' + $(if ($half) { '本机识别模型只下了一半' } else { '本机识别模型没装' }) + '，听不到视频里说的话')
+            Problem 'VIDEO-NOASR' '视频里的话听不到' $(if ($half) { '识别模型只下了一半（重跑 install-asr.ps1 会接着下）' } else { '识别模型没装上（install-asr.ps1，先走国内 ModelScope）' })
+        }
+    }
 } else { Check '正常' '看图看视频' '能看图；看视频没选' }
 
 # 7 开机自启
@@ -206,6 +216,8 @@ if ($cli -and '大肥鱼-AstrBot.lnk' -notin $lnks) { [void]$miss.Add('大脑') 
 if ("大肥鱼-$pname.lnk" -notin $lnks) { [void]$miss.Add($pname) }
 if ($mem -eq '1' -and 'Ollama.lnk' -notin $lnks) { [void]$miss.Add('Ollama') }
 if ($voice -eq '4' -and -not ($lnks | Where-Object { $_ -match '(?i)breeze' })) { [void]$miss.Add('Breeze') }
+# 启动器装的大脑：开机自启在启动器「设置 → 高级 → 通用 → 开机自启动」里开（我们不替他改）
+if (-not $cli -and $astrData -match '\\core\\data$' -and -not (Get-LauncherAutostart)) { [void]$miss.Add('大脑（AstrBot 启动器没开「开机自启动」）') }
 $both = '大肥鱼-SnowLuma.lnk' -in $lnks -and '大肥鱼-NapCat.lnk' -in $lnks
 if ($both) {
     Check '要注意' '开机自启' 'SnowLuma 和 NapCat 都设了开机自启，会抢同一个小号'
@@ -260,8 +272,8 @@ if ($errLines.Count) {
 }
 
 # ---------- 一句话 ----------
-$order = 'BRAIN-OFF', 'BRAIN-STUCK', 'QQ-NOPROC', 'QQ-UPGRADE', 'QQ-OFF', 'DS-NOKEY', 'DS-BADKEY', 'DS-NOMONEY', 'VOICE-OFF', 'MEM-OFF', 'MEM-NOMODEL', 'VIDEO-NOFFMPEG', 'MEME-NET', 'MEME-MISS', 'AUTO-BOTH', 'AUTO-MISS', 'DS-LOW', 'LOG-ERR'
-$top = $probs | Sort-Object { $i = [array]::IndexOf($order, $_.Code); if ($i -lt 0) { if ($_.Code -like 'IMPORT-*') { 13.5 } else { 99 } } else { $i } } | Select-Object -First 1
+$order = 'BRAIN-OFF', 'BRAIN-STUCK', 'QQ-NOPROC', 'QQ-UPGRADE', 'QQ-OFF', 'DS-NOKEY', 'DS-BADKEY', 'DS-NOMONEY', 'VOICE-OFF', 'MEM-NOKEY', 'MEM-NOPROVIDER', 'MEM-OFF', 'MEM-NOMODEL', 'VIDEO-NOFFMPEG', 'VIDEO-NOASR', 'MEME-NET', 'MEME-MISS', 'AUTO-BOTH', 'AUTO-MISS', 'DS-LOW', 'LOG-ERR'
+$top = $probs | Sort-Object { $i = [array]::IndexOf($order, $_.Code); if ($i -lt 0) { if ($_.Code -like 'IMPORT-*') { 16.5 } else { 99 } } else { $i } } | Select-Object -First 1
 if ($top) { $sentence = "卡在：$($top.Where)；原因：$($top.Why)；代码 $($top.Code)"; $code = $top.Code }
 else { $sentence = '卡在：没查出毛病；原因：八项检查都正常，可能是 QQ 那边的问题；代码 OK'; $code = 'OK' }
 $sentence = Hide $sentence

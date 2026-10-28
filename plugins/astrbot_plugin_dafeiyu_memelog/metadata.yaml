@@ -1,0 +1,9 @@
+name: astrbot_plugin_dafeiyu_memelog
+display_name: 大肥鱼表情包记账
+desc: 表情包是按概率发的；没真发出去的那张，不留在聊天记录里，免得她以为自己发过图、说起没发过的图
+help: 装上就行，不用设置
+version: v0.1.0
+author: zexuan604
+support_platforms:
+  - aiocqhttp
+  - webchat
