@@ -9,7 +9,7 @@ description: 在 Windows 10/11 上从零把一个 QQ 小号做成「大肥鱼」
 
 **这一版的原则**：会影响结果的事都问他，每个选项的好处和缺点都摆出来，再说「拿不准就选哪个、为什么」。说明的责任在你，决定权在他。他一开口就说了的（「装 D 盘」「我要 SnowLuma」），对应那一问跳过，复述时标「按你说的」。
 
-**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、群里回复时 @ 不 @、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」）、`setup-pet.ps1`（可选：DSH 的桌宠 dsh-pet 也变成她，见 `references/桌宠.md`）、`workbench\`（工作台本体：本机小服务加一个小窗口）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：只读体检，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
+**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、群里回复时 @ 不 @、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」；装在云服务器上的只放「云端大肥鱼工作台」）、`setup-pet.ps1`（可选：DSH 的桌宠 dsh-pet 也变成她，见 `references/桌宠.md`）、`workbench\`（工作台本体：本机小服务加一个小窗口；`cloud.py`、`cloud_remote.py` 是云端模式，经 `ssh` 看、修服务器上那套）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：只读体检，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
 
 ## 说话方式（对观众）
 
@@ -156,7 +156,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\probe.ps1"
 >
 > 拿不准就选 A：不花钱，以后想搬到云上随时能搬。回 A 或 B。
 
-选 B 的，整条照 `references/云端.md` 做（它有自己的挑服务器、体检、问法、部署和收尾，下面第 2–9 步不用）。
+选 B 的，整条照 `references/云端.md` 做（它有自己的挑服务器、体检、问法、部署和收尾，下面第 2–9 步不用；收尾同样给他放工作台，桌面叫「云端大肥鱼工作台」）。
 
 ### 问 ②：装在哪个盘
 
@@ -283,6 +283,7 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 - 「她说话太……」「这个词别老说」「语气改改」（人设大方向没毛病，只想调语气、用词）：别让他去别的对话改好再复制过来。问清哪里不舒服（最好贴一两句她的原话），在 `<配置包>\persona\大肥鱼.md`（他换了自己的角色就是他那份）里只改说话方式那几条，改动给他看，他说行再跑 `import-pack.ps1 -Dir <工作目录> -Only core`（几秒，改之前自动存快照）。下一句就用新的人设，不用 `/reset`；聊几句还是老腔调（聊天记录里旧的说法会把她往回带），再发一次 `/reset`，清之前没存的那几轮会先存进长期记忆，不会忘事。改坏了用 `-Restore -From <这次的快照>` 退回。第 1 步选了「只拿几样」的，人设是他自己原来的，导入工具不碰，照改好的文字带他在后台「人格设定」里改。
 - 「退回去」「换回原来那样」（第 1 步 B 里选了整个变成大肥鱼或只拿几样的）：`import-pack.ps1 -Dir <工作目录> -Restore`，见第 1 步 B「他选 1」第 4 条。
 - 「她不回话了」：先让他双击桌面的掉线自救，或者在工作台点修复；还不行再看日志。
+- 装在云服务器上的（工作目录的 `private\cloud.txt` 写着服务器）：掉线扫码、补装、看日志、备份、求助信息都先让他用桌面「云端大肥鱼工作台」；你要动服务器，照 `references/云端.md` 用 `ssh` 去做。他桌面上还是两个 `.cmd`、没有工作台的（老版本装的），跑一次新 Skill 的 `finish.ps1 -Dir <工作目录>` 就放上了。
 - 「让桌宠也变成她」「桌宠也要是大肥鱼」：读 `references/桌宠.md`（他没装 dsh-pet 就告诉他先在 DSH 的插件管理里装，不替他装）。「桌宠变回原来那样」：`setup-pet.ps1 -Dir <工作目录> -Remove`。
 - 「备份一下」「换电脑了」「重装系统前」「不想要了」「卸干净」：读 `references/备份、换电脑和卸载.md`。卸载一定先列清单、他回「确认」才删。
 
@@ -315,3 +316,5 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 4. 换：删掉技能文件夹里旧的 `dafeiyu-install`，放新的；`<工作目录>\dafeiyu-config-pack` 换成新 Skill 里的 `pack\dafeiyu-config-pack`，旧包里有 `voice\breeze`（做声音留的参考音和原录音）的拷回新包同一位置；跑新 Skill 的 `finish.ps1 -Dir <工作目录>`（换工作台、记下新版本号，开机自启和快捷方式照旧）。
 5. 要不要重新导入：只按 `reimport` 来（比如有 `plugins` 就跑 `import-pack.ps1 -Dir <工作目录> -Only plugins`）；空的就不导，人设、记忆、聊天记录都不动。他自己改过人设的，导 `core` 前先问他。
 6. 让他打开工作台看一眼全绿，再私聊她一句。`旧版` 里的备份，等他用几天没问题再问他删不删。
+
+**装在云服务器上的**（工作目录里有 `private\cloud.txt`、没有 AstrBot）：「一键更新」照样能用，它除了换这台电脑上的 Skill 和工作台，还把新版整包传到服务器，换掉 `/opt/dafeiyu/kit/dafeiyu-install`（旧的挪进 `/opt/dafeiyu/old/`），大约一分钟；工作台的版本取这台电脑和服务器两份里旧的那个，服务器那份落后了也会提示更新。要重新导入的块在服务器上跑（`references/云端.md` C9）。手动换的：上面第 3、4 步里云端工作目录没有 `dafeiyu-config-pack`，跳过那部分；换完技能文件夹跑新 Skill 的 `finish.ps1 -Dir <工作目录>`（老版本装的云端，这一步顺手放上「云端大肥鱼工作台」），再照 C6 把新 Skill 传上服务器。

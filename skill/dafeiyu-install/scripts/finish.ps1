@@ -1,4 +1,4 @@
-﻿# 第 8 步：开机自启 + 桌面「大肥鱼掉线-双击扫码」。可以重复跑。
+﻿# 第 8 步：开机自启 + 桌面「大肥鱼掉线-双击扫码」+ 工作台。可以重复跑。装在云服务器上的（private\cloud.txt）只放「云端大肥鱼工作台」。
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File finish.ps1 -Dir <工作目录>
 # 家用电脑用「启动文件夹」就够了（他登录 Windows 时启动，窗口最小化）。
 param([Parameter(Mandatory)][string]$Dir)
@@ -9,6 +9,52 @@ $desktop = [Environment]::GetFolderPath('Desktop')   # 桌面不一定在 C:\Use
 $ws = New-Object -ComObject WScript.Shell
 function New-Lnk([string]$Path, [string]$Target, [string]$WorkDir, [int]$Style, [string]$Desc, [string]$Arguments = '') {
     $l = $ws.CreateShortcut($Path); $l.TargetPath = $Target; $l.Arguments = $Arguments; $l.WorkingDirectory = $WorkDir; $l.WindowStyle = $Style; $l.Description = $Desc; $l.Save()
+}
+function Copy-Workbench {
+    # 工作台：tools\workbench\server.py 是本机小服务，只听 127.0.0.1；「更新」页靠 skill-version.json（现在是哪一版）和 skill-home.txt（Skill 放在哪，只记技能文件夹里的）
+    New-Item -ItemType Directory -Force "$Dir\tools\workbench" | Out-Null
+    Copy-Item "$PSScriptRoot\workbench\*" "$Dir\tools\workbench\" -Recurse -Force
+    $skillHome = Split-Path $PSScriptRoot
+    if (Test-Path "$skillHome\version.json") { Copy-Item "$skillHome\version.json" "$Dir\tools\skill-version.json" -Force }
+    if ((Split-Path (Split-Path $skillHome) -Leaf) -eq 'skills') { [IO.File]::WriteAllText("$Dir\tools\skill-home.txt", $skillHome, (New-Object Text.UTF8Encoding($false))) }
+    [IO.File]::WriteAllText("$Dir\tools\workbench.cmd", "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0workbench\open.ps1`"`r`n", (New-Object Text.UTF8Encoding($false)))
+}
+
+# 云端（她装在云服务器上，references/云端.md）：这台电脑上没有 AstrBot，只有 private 里连服务器的钥匙。
+# 开机自启、掉线重登都在服务器上（C10），这里只放工作台；小服务要的 Python 用官方便携版（11 MB，解压即用，不装进系统）
+$cloudTxt = "$Dir\private\cloud.txt"
+$isCloud = (Test-Path $cloudTxt) -and (Select-String -Path $cloudTxt -Pattern '^\s*(host|ip)\s*[:：]\s*\S' -Quiet) -and
+           -not (Test-Path "$Dir\start-astrbot.cmd") -and -not (Test-Path "$Dir\astrbot\data")
+if ($isCloud) {
+    if (-not (Test-Path "$Dir\python\pythonw.exe")) {
+        $zip = "$Dir\downloads\python-3.12.10-embed-amd64.zip"
+        $urls = @('https://mirrors.huaweicloud.com/python/3.12.10/python-3.12.10-embed-amd64.zip',
+                  'https://mirrors.aliyun.com/python-release/windows/python-3.12.10-embed-amd64.zip',
+                  'https://registry.npmmirror.com/-/binary/python/3.12.10/python-3.12.10-embed-amd64.zip',
+                  'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip')
+        try {
+            Get-File -Urls $urls -OutFile $zip -MinBytes 11133606 -Sha256 '4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3' -ExpectedBytes 11133606 | Out-Null
+            Expand-Archive -LiteralPath $zip -DestinationPath "$Dir\python" -Force
+            Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
+            Say '工作台用的 Python（便携版）放在工作目录的 python 文件夹'
+        } catch { Say "工作台用的 Python 没下下来（$($_.Exception.Message)）：网络好了再跑一次 finish.ps1，不然桌面的工作台打不开" }
+    }
+    Copy-Workbench
+    $lnk = "$desktop\云端大肥鱼工作台.lnk"
+    New-Lnk $lnk "$Dir\tools\workbench.cmd" "$Dir\tools" 7 '看云上的大肥鱼在不在、扫码登录、一键修、备份'
+    if (Test-Path "$Dir\tools\workbench\dafeiyu.ico") { $l = $ws.CreateShortcut($lnk); $l.IconLocation = "$Dir\tools\workbench\dafeiyu.ico,0"; $l.Save() }
+    # 以前收尾放在桌面的两个 .cmd 和说明，工作台都包了：挪进工作目录的「旧版」，不删
+    $moved = @()
+    foreach ($n in '云端大肥鱼-打开后台.cmd', '云端大肥鱼掉线-扫码.cmd', '云端大肥鱼-说明.txt') {
+        if (Test-Path -LiteralPath "$desktop\$n") {
+            New-Item -ItemType Directory -Force "$Dir\旧版\桌面旧入口" | Out-Null
+            Move-Item -LiteralPath "$desktop\$n" "$Dir\旧版\桌面旧入口\$n" -Force; $moved += $n
+        }
+    }
+    if ($moved) { Say ("桌面上以前的 {0} 挪进了工作目录的「旧版\桌面旧入口」（工作台都包了）" -f ($moved -join '、')) }
+    if (-not (Test-Path "$Dir\python\pythonw.exe")) { exit 1 }
+    Say '桌面放了「云端大肥鱼工作台」（双击开小窗口）；下一步照 云端.md 的 C10 打开它给他看'
+    exit 0
 }
 
 # 1 开机自启（WindowStyle 7 = 最小化）
@@ -59,14 +105,8 @@ Say "桌面放了「$reName」"
 # 3 工作台：双击打开一个小窗口（状态灯、一键修复、补装、复制求助信息、备份、直达后台、交给 Agent 的话）
 #   本机小服务 tools\workbench\server.py 用 AstrBot 自带的 Python 跑，只听 127.0.0.1；它要调的几个脚本一起拷进 tools\（备份要 dot-source 同目录的 common.ps1）
 #   找不到 Python 时 open.ps1 退回 workbench.ps1 的静态页（只能看，不能修）
-New-Item -ItemType Directory -Force "$Dir\tools\workbench" | Out-Null
-Copy-Item "$PSScriptRoot\workbench\*" "$Dir\tools\workbench\" -Recurse -Force
+Copy-Workbench
 foreach ($f in 'workbench.ps1', 'common.ps1', 'backup.ps1', 'diag.ps1', 'import-pack.ps1', 'setup-pet.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
-# 工作台「更新」页靠这两个文件：现在是哪一版 Skill、Skill 放在哪（只记技能文件夹里的；从下载文件夹跑的不记）
-$skillHome = Split-Path $PSScriptRoot
-if (Test-Path "$skillHome\version.json") { Copy-Item "$skillHome\version.json" "$Dir\tools\skill-version.json" -Force }
-if ((Split-Path (Split-Path $skillHome) -Leaf) -eq 'skills') { [IO.File]::WriteAllText("$Dir\tools\skill-home.txt", $skillHome, (New-Object Text.UTF8Encoding($false))) }
-[IO.File]::WriteAllText("$Dir\tools\workbench.cmd", "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0workbench\open.ps1`"`r`n", (New-Object Text.UTF8Encoding($false)))
 New-Lnk "$desktop\大肥鱼工作台.lnk" "$Dir\tools\workbench.cmd" "$Dir\tools" 7 '看大肥鱼在不在、一键修、补装、备份'
 if (Test-Path "$Dir\tools\workbench\dafeiyu.ico") { $l = $ws.CreateShortcut("$desktop\大肥鱼工作台.lnk"); $l.IconLocation = "$Dir\tools\workbench\dafeiyu.ico,0"; $l.Save() }
 & "$Dir\tools\workbench.ps1" -Dir $Dir -NoOpen   # 顺手生成兜底静态页

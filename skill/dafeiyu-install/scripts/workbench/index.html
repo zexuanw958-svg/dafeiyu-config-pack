@@ -344,6 +344,11 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
 .masked span{font-size:12px;font-weight:600;color:var(--okInk);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);border-radius:999px;padding:1px 10px;display:inline-flex;gap:4px;align-items:center}
 .masked .ic{width:12px;height:12px;stroke-width:2.2}
 .mfoot{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.qrbox{display:flex;flex-direction:column;align-items:center;gap:8px;margin:4px 0 6px}
+.qrbox img{width:216px;height:216px;image-rendering:pixelated;background:#fff;padding:10px;border-radius:14px;border:1.3px solid var(--line2)}
+.qrbox small{font-size:12px;color:var(--ink3)}
+.datein{display:flex;gap:10px;align-items:center;margin:4px 0 2px}
+.datein input{height:38px;padding:0 12px;border-radius:12px;border:1.3px solid var(--line2);background:var(--card);color:var(--ink);font:14px var(--sans)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:40;display:flex;gap:8px;align-items:center;max-width:calc(100vw - 40px);box-shadow:var(--pop)}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .toast .ic{color:var(--ok);width:16px;height:16px}
@@ -382,13 +387,15 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
  <symbol id="i-msgs" viewBox="0 0 24 24"><path d="M3.5 5.8A2.3 2.3 0 0 1 5.8 3.5h8.4a2.3 2.3 0 0 1 2.3 2.3v5.4a2.3 2.3 0 0 1-2.3 2.3H9L5.5 16.3v-2.8a2.2 2.2 0 0 1-2-2.3V5.8Z"/><path d="M19 8.5a2 2 0 0 1 1.5 2v5.3a2 2 0 0 1-1.7 2v2.6L15.6 18H11"/></symbol>
  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.8"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></symbol>
+ <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6" rx="1.6"/><rect x="4" y="13.5" width="16" height="6" rx="1.6"/><path d="M7.5 7.5h.01M7.5 16.5h.01M11 7.5h5M11 16.5h5"/></symbol>
+ <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></symbol>
 </svg>
 
 <div class="win">
   <!-- 左：她 -->
   <aside class="side">
-    <div class="brand"><b>大肥鱼工作台</b><small id="brandSub"></small></div>
+    <div class="brand"><b id="brandName">大肥鱼工作台</b><small id="brandSub"></small></div>
     <div class="portrait" id="portrait">
       <svg class="lace" viewBox="0 0 352 16" preserveAspectRatio="none" aria-hidden="true"><path class="fill" id="laceFill"/><path class="edge" id="laceEdge"/><g id="laceDots"></g></svg>
       <div class="halo"></div><div class="ring r1"></div><div class="ring r2"></div>
@@ -472,7 +479,7 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
           <div class="faq" id="faq"></div>
           <div>
             <dl class="kv">
-              <div><dt>她装在</dt><dd><code id="hpDir">　</code><button class="btn sm ghost" data-folder="dir">打开</button></dd></div>
+              <div><dt id="hpDirT">她装在</dt><dd><code id="hpDir">　</code><button class="btn sm ghost" data-folder="dir">打开</button></dd></div>
               <div><dt>后台账号密码在</dt><dd><code id="hpBk">　</code><small>只给位置，不显示密码</small></dd></div>
               <div><dt>版本</dt><dd class="vers" id="vers"></dd></div>
             </dl>
@@ -509,6 +516,7 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
   <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
   <h3 id="cfTitle">　</h3>
   <p class="msub" id="cfSub">　</p>
+  <div class="qrbox" id="cfQR" hidden><img id="cfQRimg" alt="登录二维码"><small id="cfQRsub"></small></div>
   <div class="progress" id="cfProg"><div class="bar"><i></i></div><div class="step"><span class="lbl">准备中…</span><span class="pct">0%</span></div></div>
   <div class="result" id="cfRes"><div class="big"><svg class="ic"><use href="#i-check"/></svg></div><b>　</b><span></span></div>
   <div class="mfoot" id="cfFoot"><button class="btn ghost" data-close>先不了</button><button class="btn primary" id="cfGo">开始</button></div>
@@ -518,7 +526,7 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
 <div class="modal" id="m-backup" role="dialog" aria-modal="true">
   <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
   <h3>备份到桌面</h3>
-  <p class="msub">把她的记忆、人设、聊天记录、插件设置（astrbot\data）和 private 文件夹打成桌面上一个 zip。换电脑、重装前用；她开着也能备份。</p>
+  <p class="msub" id="bkSub">把她的记忆、人设、聊天记录、插件设置（astrbot\data）和 private 文件夹打成桌面上一个 zip。换电脑、重装前用；她开着也能备份。</p>
   <div class="warnbox"><svg class="ic"><use href="#i-lock"/></svg><span>里面有你的密钥和密码。只给自己留着，别发给别人，也别传网盘分享。</span></div>
   <label class="check" id="bkMemesRow"><input type="checkbox" id="bkMemes"><span>连表情包图片一起备份（多几百 MB）。不带的话，换电脑后点「补装表情包」重新下。</span></label>
   <div class="progress" id="bkProg"><div class="bar"><i></i></div><div class="step"><span class="lbl">准备中…</span><span class="pct">0%</span></div></div>
@@ -540,6 +548,15 @@ code{font:12px var(--mono);background:var(--sunk);padding:2px 7px;border-radius:
     <div class="masked"><span><svg class="ic"><use href="#i-check"/></svg>QQ 号、群号只留头尾</span><span><svg class="ic"><use href="#i-check"/></svg>密钥、口令去掉了</span><span><svg class="ic"><use href="#i-check"/></svg>不含后台密码</span><span><svg class="ic"><use href="#i-check"/></svg>用户名换成了「用户名」</span></div>
   </div>
   <div class="result fail" id="dgFail"><div class="big"><svg class="ic"><use href="#i-alert"/></svg></div><b>没生成出来</b><span></span></div>
+</div>
+
+<!-- 弹窗：记服务器到期日（云端） -->
+<div class="modal" id="m-expire" role="dialog" aria-modal="true">
+  <button class="x" data-close><svg class="ic"><use href="#i-x"/></svg></button>
+  <h3>服务器什么时候到期？</h3>
+  <p class="msub">在云控制台的服务器列表里能看到「到期时间」。记下来以后，还剩 15 天时这里会提醒你续费。</p>
+  <div class="datein"><input type="date" id="exDate"><a class="btn sm ghost" id="exConsole" target="_blank" rel="noopener"><svg class="ic"><use href="#i-ext"/></svg>去控制台看</a></div>
+  <div class="mfoot"><button class="btn ghost" data-close>先不了</button><button class="btn primary" id="exGo">记下</button></div>
 </div>
 
 <div class="toast" id="toast" role="status"><svg class="ic"><use href="#i-check"/></svg><span></span></div>
@@ -651,6 +668,9 @@ const LINES={
   game:['显卡让给你了，我先只打字','去打吧，赢了来 QQ 跟我说','打游戏中，这会儿说的先不记'],
   gameLeft:['上次关的东西还没开回来'],
   down:['小窗口断了，我本鱼没事','我还在 QQ 上，只是这个窗口连不上了'],
+  server:['服务器那边没信号了……','我住的那台服务器联系不上了'],
+  renew:['房租快到期了，记得续费','服务器要交钱啦，不然我得搬走'],
+  connecting:['我住在云上，稍等我喊一声','正在给服务器打电话……'],
 };
 function pickLine(key, S){
   const arr=LINES[key]||LINES.ok; const st={}; (S&&S.stats||[]).forEach(x=>st[x.id]=x);
@@ -664,20 +684,23 @@ function pickLine(key, S){
    红（bad）：她回不了话（大脑、登 QQ、DeepSeek 任何一个出问题），或者小问题攒到三个以上。
    「小问题」＝其余几项亮黄灯或红灯的；查不到（unk）、没开（off）、正在弄（busy）都不算。打游戏模式没恢复完算一个，那时被它关着的语音、记忆不另算。
    后台在下东西、在补装、在修，八项本身都好：绿图，加进度条；打游戏模式开着：绿。 */
-const HEAD={voice:'发不了语音',memory:'记不住新的事',vision:'看不了视频',autostart:'开机不会自己上线',memes:'表情包没装全',deepseek:'余额快用完了',pet:'桌宠连不上她'};
-const CORE=['brain','qq','deepseek'];
+const HEAD={voice:'发不了语音',memory:'记不住新的事',vision:'看不了视频',autostart:'开机不会自己上线',memes:'表情包没装全',deepseek:'余额快用完了',pet:'桌宠连不上她',server:'服务器有点挤',renew:'服务器快到期了'};
+const CORE=['server','brain','qq','deepseek'];  // server 只有云端模式才有
+const WB_NAME=()=>S&&S.cloud?'云端大肥鱼工作台':'大肥鱼工作台';
 const nameOf=it=>String(it.name||'').split(' · ')[0];
 const cnNum=n=>'零一二三四五六七八九十'[n]||String(n);  // 配过桌宠多一项「桌宠」
 function summarize(S){
   const by=id=>S.items.find(i=>i.id===id)||{};
   const g=S.game||{};
   const running=(S.jobs||[]).filter(j=>j.state==='running');
-  const b=by('brain'), q=by('qq'), d=by('deepseek');
+  const b=by('brain'), q=by('qq'), d=by('deepseek'), sv=by('server');
   let small=S.items.filter(i=>(i.state==='bad'||i.state==='warn')&&!(CORE.includes(i.id)&&i.state==='bad'));
   if(g.left) small=small.filter(i=>i.id!=='voice'&&i.id!=='memory');
   const n=small.length+(g.left?1:0), face=n>=3?'bad':n?'warn':'ok';
   const imp=running.find(j=>j.kind==='import') || (by('memes').state==='busy'?{step:by('memes').text,pct:by('memes').pct}:null);
   const m=(()=>{
+    if(sv.state==='busy') return {face:'warn',chip:'正在连服务器',head:'正在连服务器',reason:sv.text,say:'connecting'};
+    if(sv.state==='bad'){ const lost=!!(S.cloud&&S.cloud.err); return {face:'bad',chip:lost?'看不到她':'她现在回不了话',head:lost?'连不上服务器':'服务器出问题了',reason:sv.text,fix:sv.fix,link:sv.fix?null:(sv.links||[])[0],say:'server',log:'brain'}; }
     if(b.state==='bad') return {face:'bad',chip:'她现在回不了话',head:/卡住/.test(b.text||'')?'大脑卡住了':'大脑没开',reason:b.text,fix:b.fix,say:'brain',log:'brain'};
     if(b.state==='busy') return {face:'warn',chip:'正在起来',head:'她正在醒过来',reason:b.text,say:'brainBusy'};
     if(q.state==='bad') return {face:'bad',chip:'她现在回不了话',head:'小号没登上 QQ',reason:q.text,fix:q.fix,say:'qq',log:'qq'};
@@ -691,10 +714,11 @@ function summarize(S){
       return {face:'bad',chip:`能聊天 · 攒了 ${n} 个问题`,head:'好几处要修',reason:`${names.join('、')}，这 ${n} 处都不太对。她还能聊天，${fx?'先点下面修一处，':''}剩下的在右边一项项点。`,fix:fx,say:'many'};
     }
     if(g.left) return {face,chip:'能聊天 · 语音和记忆还关着',head:'打游戏模式没恢复完',reason:'上次开着打游戏模式关了机，开机没恢复成：她现在只打字、不记新的事。点下面恢复。',fix:{action:'game_off',label:'恢复语音和记忆'},say:'gameLeft'};
-    if(small.length){ const f=small[0]; return {face,chip:`能聊天 · 有 ${n} 个小问题`,head:HEAD[f.id]||nameOf(f),reason:f.text,fix:f.fix,link:f.id==='deepseek'&&!f.fix?(f.links||[])[0]:null,say:f.id==='deepseek'?'lowmoney':f.id}; }
+    if(small.length){ const f=small[0]; const hd=S.cloud&&f.id==='autostart'?'重启后要重新扫码':HEAD[f.id]||nameOf(f);
+      return {face,chip:`能聊天 · 有 ${n} 个小问题`,head:hd,reason:f.text,fix:f.fix,link:(f.id==='deepseek'||f.id==='renew')&&!f.fix?(f.links||[])[0]:null,say:f.id==='deepseek'?'lowmoney':f.id}; }
     if(g.on) return {face,chip:'在线能聊 · 打游戏模式',head:'打游戏模式开着',reason:'本机的语音和记忆先关着，显卡和内存都腾给游戏了。她照样回消息，只打字、这段时间说的事不记。打完点下面恢复，重启电脑也会自己恢复。',fix:{action:'game_off',label:'打完了，恢复'},say:'game'};
     if(imp) return {face,chip:'能聊天 · 正在下东西',head:'正在补装',reason:imp.step||'放在后台下，她照常聊天。',say:'busy'};
-    const unk=S.items.filter(i=>i.state==='unk').length;
+    const unk=S.items.filter(i=>i.state==='unk'&&i.id!=='renew').length;
     return {face,chip:'在线能聊',head:'她好着呢',reason:unk?'能查的都正常（DeepSeek 余额这会儿没查到）。去 QQ 找她聊吧。':`${cnNum(S.items.length)}项都正常，去 QQ 找她聊吧。`,say:'ok'};
   })();
   if(imp&&!m.prog) m.prog=imp;
@@ -703,13 +727,13 @@ function summarize(S){
 
 /* ---------- 动作 ---------- */
 const heroJob={id:null};
-const SAY_FIX={start_astrbot:'伸个懒腰，马上起来',restart_astrbot:'我先眯一下，马上回来',relogin:'窗口弹出来了，照着做嘛',restart_qq:'换个姿势重新连',start_breeze:'等一下下，我在清嗓子……',start_ollama:'把记性找回来……',game_on:'好，我先安静点，只打字',skill_update:'换身新衣服，马上回来',game_off:'清清嗓子，把记性找回来……',import:'在搬东西，别催',autostart_fix:'记下了，下次开机自己起来',diag:'我把情况写下来',backup:'打包中，别碰我的东西'};
+const SAY_FIX={start_docker:'先把服务器上的 Docker 叫醒',set_expire:'记下了，到时候提醒你',open_napcat:'NapCat 的后台在浏览器里',start_astrbot:'伸个懒腰，马上起来',restart_astrbot:'我先眯一下，马上回来',relogin:'窗口弹出来了，照着做嘛',restart_qq:'换个姿势重新连',start_breeze:'等一下下，我在清嗓子……',start_ollama:'把记性找回来……',game_on:'好，我先安静点，只打字',skill_update:'换身新衣服，马上回来',game_off:'清清嗓子，把记性找回来……',import:'在搬东西，别催',autostart_fix:'记下了，下次开机自己起来',diag:'我把情况写下来',backup:'打包中，别碰我的东西'};
 async function act(name, body, ui){
   ui=ui||{};
   try{
     const r=await api('/api/action/'+name, body||{});
     track(r.job, ui); return r.job;
-  }catch(e){ toast(e.code===401?'请关掉这个窗口，从桌面「大肥鱼工作台」重新打开':'没发出去：工作台的小服务没应答',true); if(ui.fail) ui.fail(); }
+  }catch(e){ toast(e.code===401?`请关掉这个窗口，从桌面「${WB_NAME()}」重新打开`:'没发出去：工作台的小服务没应答',true); if(ui.fail) ui.fail(); }
 }
 function track(job, ui){
   const step=j=>{ if(ui.box) prog(ui.box, j.pct, j.step); if(ui.step) ui.step(j); };
@@ -734,28 +758,40 @@ function heroRun(fix){
 /* 确认弹窗：重启、重新登 */
 const CONFIRM={
   restart_astrbot:S=>({title:'重启大脑？',sub:'大约半分钟到一分钟。这期间发给她的消息会晚一点回，不会丢；聊天记录和记忆都不受影响。',go:'重启'}),
-  restart_qq:S=>({title:'重启登 QQ 的程序？',sub:S.proto==='snowluma'?'只重启 SnowLuma，不碰你的桌面 QQ。小号一般会自己连回来，大约 20 秒。':'只重启 NapCat 和它自带的那份 QQ，不碰你平时用的 QQ。一般能快速登录，不行会叫你扫码。',go:'重启'}),
+  restart_qq:S=>S.cloud?{title:'重启服务器上的 NapCat？',sub:S.cloud.quick?'NapCat 记住了小号，一般能自己快速登录回来，大约半分钟。':'NapCat 还没记住小号（「服务器重启后」那一项没补上），重启以后要重新扫码。不急的话先别重启。',go:'重启'}:({title:'重启登 QQ 的程序？',sub:S.proto==='snowluma'?'只重启 SnowLuma，不碰你的桌面 QQ。小号一般会自己连回来，大约 20 秒。':'只重启 NapCat 和它自带的那份 QQ，不碰你平时用的 QQ。一般能快速登录，不行会叫你扫码。',go:'重启'}),
   game_on:S=>{ const w=[(S.answers||{}).voice==='4'?'Breeze 语音（占显存）':'',(S.answers||{}).memory==='1'?'Ollama 记忆（占约 1.2 GB 内存）':''].filter(Boolean).join('和');
     return {title:'开打游戏模式？',sub:`关掉本机的${w}，大约 10 秒。她照样回消息，只是只打字、这段时间说的事不记（以前记住的都在）。打完点「打完了，恢复」；忘了点也没事，重启电脑会自己恢复。`,go:'开'}; },
   skill_update:S=>{ const u=(S.updates||[]).find(x=>x.id==='skill')||{};
+    if(S.cloud) return {title:`更新到 ${u.latest||'新版'}？`,sub:`从 GitHub 下新版的安装 Skill 和工作台换上，再传一份到服务器上（导入工具在那边用），大约一分钟。旧版先备份（这台电脑上的放进工作目录的「旧版」，服务器上的挪进 old）；她照常聊天，人设、记忆、聊天记录都不动。${(u.reimport||[]).length?'这一版还要重新导入一部分，更新完会告诉你怎么跟 Agent 说。':''}换完工作台会自己重开一下，这个窗口不用关。`,go:'更新'};
     return {title:`更新到 ${u.latest||'新版'}？`,sub:`从 GitHub 下新版的安装 Skill 和工作台换上，大约半分钟。旧版先备份到工作目录的「旧版」文件夹；她照常聊天，人设、记忆、聊天记录都不动。${(u.reimport||[]).length?'这一版还要重新导入一部分，更新完会告诉你怎么跟 Agent 说。':''}换完工作台会自己重开一下，这个窗口不用关。`,go:'更新'}; },
   game_off:S=>({title:'打完了，恢复？',sub:'把本机的语音和记忆开回来，大约半分钟。',go:'恢复'}),
-  relogin:S=>({title:'重新登 QQ',sub:S.proto==='snowluma'?'会弹出一个黑色小窗口，照里面说的做：一般要在桌面 QQ 的窗口里点「登录」，是二维码就用小号的手机 QQ 扫一扫。最多等 10 分钟。':'会弹出一个黑色小窗口：先试不扫码直接登，不行会打开二维码页面，用小号的手机 QQ 扫一扫。最多等 10 分钟。',go:'开始'}),
+  relogin:S=>S.cloud?{title:'扫码登录',sub:'NapCat 在服务器上出二维码，会显示在这里。用登着小号的手机 QQ 扫一扫，再在手机上点「登录」。二维码两分钟换一张，这里跟着换；最多等 10 分钟。手机提示账号有风险的话，先按手机上的提示处理。',go:'出二维码',auto:true}:({title:'重新登 QQ',sub:S.proto==='snowluma'?'会弹出一个黑色小窗口，照里面说的做：一般要在桌面 QQ 的窗口里点「登录」，是二维码就用小号的手机 QQ 扫一扫。最多等 10 分钟。':'会弹出一个黑色小窗口：先试不扫码直接登，不行会打开二维码页面，用小号的手机 QQ 扫一扫。最多等 10 分钟。',go:'开始'}),
 };
 let cfName='';
 function confirmRun(name){
   if(!S) return; cfName=name; const c=CONFIRM[name](S);
   $('#cfTitle').textContent=c.title; $('#cfSub').textContent=c.sub; $('#cfGo').textContent=c.go;
-  progOff($('#cfProg')); $('#cfRes').classList.remove('on','fail'); $('#cfFoot').style.display='flex'; openModal('m-confirm');
+  progOff($('#cfProg')); $('#cfRes').classList.remove('on','fail'); $('#cfFoot').style.display='flex'; $('#cfQR').hidden=true; openModal('m-confirm');
+  if(c.auto) $('#cfGo').click();
+}
+/* 云端扫码：二维码跟着任务进度一起回来（data:image/png），换了才换图 */
+function showQR(j){
+  const q=(j&&j.data||{}).qr, box=$('#cfQR');
+  if(!q){ box.hidden=true; return; }
+  const im=$('#cfQRimg'); if(im.getAttribute('src')!==q) im.setAttribute('src',q);
+  $('#cfQRsub').textContent=(j.data.qr_at?`这张码是 ${new Date(j.data.qr_at*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})} 出的，`:'')+'过期了会自己换';
+  box.hidden=false;
 }
 $('#cfGo').addEventListener('click',()=>{
   $('#cfFoot').style.display='none';
-  act(cfName,{},{box:$('#cfProg'), done:j=>{ progOff($('#cfProg')); const r=$('#cfRes'); r.classList.add('on'); r.classList.toggle('fail',j.state!=='ok'); $('use',r).setAttribute('href',j.state==='ok'?'#i-check':'#i-alert'); $('b',r).textContent=j.state==='ok'?'好了':'没成'; $('span',r).textContent=j.msg; if(j.state==='ok'&&(j.data||{}).restart) waitRestart(); }, fail:()=>{ $('#cfFoot').style.display='flex'; progOff($('#cfProg')); }});
+  act(cfName,{},{box:$('#cfProg'), step:showQR, done:j=>{ progOff($('#cfProg')); $('#cfQR').hidden=true; const r=$('#cfRes'); r.classList.add('on'); r.classList.toggle('fail',j.state!=='ok'); $('use',r).setAttribute('href',j.state==='ok'?'#i-check':'#i-alert'); $('b',r).textContent=j.state==='ok'?'好了':'没成'; $('span',r).textContent=j.msg; if(j.state==='ok'&&(j.data||{}).restart) waitRestart(); }, fail:()=>{ $('#cfFoot').style.display='flex'; progOff($('#cfProg')); }});
 });
 
 /* 备份 */
 let bkFile='';
-function openBackup(){ progOff($('#bkProg')); $('#bkRes').classList.remove('on','fail'); $('#bkFoot').hidden=false; $('#bkFoot').style.display='flex'; $('#bkDone').hidden=true; $('#bkDone').style.display='none'; $('#bkMemesRow').style.display=''; openModal('m-backup'); }
+function openBackup(){
+  $('#bkSub').textContent=S&&S.cloud?'把服务器上她的记忆、人设、聊天记录、插件设置（data）和 private 文件夹拉回这台电脑，打成桌面上一个 zip。换服务器、搬回本机、服务器到期前用；她开着也能备份。':'把她的记忆、人设、聊天记录、插件设置（astrbot\\data）和 private 文件夹打成桌面上一个 zip。换电脑、重装前用；她开着也能备份。';
+  progOff($('#bkProg')); $('#bkRes').classList.remove('on','fail'); $('#bkFoot').hidden=false; $('#bkFoot').style.display='flex'; $('#bkDone').hidden=true; $('#bkDone').style.display='none'; $('#bkMemesRow').style.display=''; openModal('m-backup'); }
 $('#bkGo').addEventListener('click',()=>{
   $('#bkFoot').style.display='none'; $('#bkMemesRow').style.display='none';
   act('backup',{memes:$('#bkMemes').checked},{box:$('#bkProg'), done:j=>{ progOff($('#bkProg')); const r=$('#bkRes'); r.classList.add('on'); r.classList.toggle('fail',j.state!=='ok'); $('use',r).setAttribute('href',j.state==='ok'?'#i-check':'#i-alert');
@@ -779,7 +815,15 @@ $('#dgShow').addEventListener('click',()=>folder('file',dg.file||''));
 async function folder(which, path){ try{ await api('/api/action/open_folder',{which,path:path||''}); }catch(e){ toast('没打开：'+(e.message==='host'?'':'文件可能被挪走了'),true); } }
 $$('[data-folder]').forEach(b=>b.addEventListener('click',()=>folder(b.dataset.folder)));
 
+function openExpire(){
+  const c=(S&&S.cloud)||{}; const m=String(c.expire||'').match(/(20\d\d)\D{1,3}(\d{1,2})\D{1,3}(\d{1,2})/);
+  $('#exDate').value=m?`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`:'';
+  const a=$('#exConsole'); if(c.console){ a.href=c.console; a.style.display=''; } else a.style.display='none';
+  openModal('m-expire'); setTimeout(()=>$('#exDate').focus(),80);
+}
+$('#exGo').addEventListener('click',()=>{ const v=$('#exDate').value; if(!v){ toast('先选个日期',true); return; } closeAll(); act('set_expire',{date:v},{}); });
 function runNamed(name, body){
+  if(name==='set_expire') return openExpire();
   if(CONFIRM[name]) return confirmRun(name);
   if(name==='backup') return openBackup();
   if(name==='diag') return runDiag();
@@ -789,10 +833,10 @@ function runNamed(name, body){
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-run]'); if(!b||b.disabled) return;
   e.preventDefault(); let body={}; try{ body=JSON.parse(b.dataset.body||'{}'); }catch(_){}
-  if(b.dataset.hero!==undefined) return heroRun({action:b.dataset.run, body});
+  if(b.dataset.hero!==undefined && !(S&&S.cloud&&b.dataset.run==='relogin')) return heroRun({action:b.dataset.run, body});  // 云端扫码要在弹窗里看二维码
   runNamed(b.dataset.run, body);
 });
-document.addEventListener('click',e=>{ const b=e.target.closest('[data-ask]'); if(!b) return; e.preventDefault(); copy(ASK_EXTRA[b.dataset.ask]||'',b,'已复制，粘到 DeepSeek Harness 里发出去'); });
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-ask]'); if(!b) return; e.preventDefault(); copy(askText(b.dataset.ask),b,'已复制，粘到 DeepSeek Harness 里发出去'); });
 
 /* ---------- 渲染 ---------- */
 let S=null;
@@ -837,16 +881,35 @@ function itemHTML(it){
   return `<div class="row" data-s="${esc(it.state)}" title="${esc(it.what||'')}"><div class="l"><span class="dot"></span><span class="nm">${esc(nm)}${em?`<em>${esc(em)}</em>`:''}</span><span class="lead"></span><span class="v">${esc(it.pill||STATE_TX[it.state]||'')}</span></div><div class="d">${esc(it.text)}</div>${ip}${fix||links?`<div class="lk">${fix}${links}</div>`:''}</div>`;
 }
 /* 八项照固定顺序排（跟原型一样，不按好坏挪位置）；左边那张卡已经把最要紧的挑出来了 */
-const ORDER=['brain','qq','deepseek','memory','voice','vision','memes','autostart','pet'];
+const ORDER=['server','brain','qq','deepseek','memory','voice','vision','memes','autostart','renew','pet'];
 function renderItems(S){
   const pos=id=>{ const i=ORDER.indexOf(id); return i<0?99:i; };
   const list=S.items.map((x,i)=>[x,i]).sort((a,b)=>(pos(a[0].id)-pos(b[0].id))||(a[1]-b[1])).map(x=>x[0]);
   setHTML($('#items'),list.map(itemHTML).join(''));
-  const good=S.items.filter(i=>!['bad','warn','busy'].includes(i.state)).length;
-  $('#tally').innerHTML=`${good}/${S.items.length}<span>项正常</span>`;
+  const lost=S.cloud&&(S.cloud.err||S.cloud.connecting);  // 连不上服务器时「查不到」不算正常
+  const good=S.items.filter(i=>!['bad','warn','busy'].includes(i.state)&&!(lost&&i.state==='unk')).length;
+  $('#tally').innerHTML=S.cloud&&S.cloud.connecting?'…<span>正在连</span>':`${good}/${S.items.length}<span>项正常</span>`;
   const h2=document.querySelector('#p-st .head h2'); if(h2) h2.textContent=cnNum(S.items.length)+'项检查';
 }
+function renderOpsCloud(S){
+  const ext=ic('i-ext').replace('class="ic"','class="ic ext"'), c=S.cloud||{};
+  const t=[
+    `<button class="op" data-run="restart_astrbot">${ic('i-power')}<b>重启大脑</b><small>卡住、反应慢的时候试试，大约一分钟</small></button>`,
+    `<button class="op" data-run="relogin">${ic('i-qq')}<b>扫码登录</b><small>小号掉线了点这里，二维码就出在这个窗口里</small></button>`,
+    `<button class="op" data-run="restart_qq">${ic('i-restart')}<b>重启 NapCat</b><small>${c.quick?'在线却不回话时试试，一般能自己登回来':'在线却不回话时试试；还没设快速登录，重启后要重新扫码'}</small></button>`,
+    `<button class="op" data-run="logs">${ic('i-log')}<b>看最近日志</b><small>从服务器上拉回来，出错的标红，号码自动打码</small></button>`,
+    `<button class="op" data-run="diag">${ic('i-buoy')}<b>复制求助信息</b><small>打好码存到桌面，再复制一句话，发给 Agent 或群里</small></button>`,
+    `<button class="op" data-run="backup">${ic('i-box')}<b>备份到桌面</b><small>把服务器上的记忆、人设、设置拉回这台电脑，换服务器用</small></button>`,
+    `<a class="op" href="${esc(S.backend)}/#/" target="_blank" rel="noopener">${ic('i-brain')}<b>打开 AstrBot 后台${ext}</b><small>她的详细设置都在这，第一次要登录</small></a>`,
+    `<button class="op" data-run="open_napcat">${ic('i-chat')}<b>打开 NapCat 后台${ext}</b><small>登 QQ 那个程序的设置页，口令自动带上</small></button>`,
+    `<a class="op" href="${esc(S.backend)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}<b>她跟谁聊过什么${ext}</b><small>翻翻她的聊天记录</small></a>`,
+    c.console?`<a class="op" href="${esc(c.console)}" target="_blank" rel="noopener">${ic('i-server')}<b>云控制台${ext}</b><small>看服务器、续费、重启服务器都在这</small></a>`:'',
+  ];
+  setHTML($('#ops'),t.join(''));
+  $('#bkPath').textContent=S.paths.backend;
+}
 function renderOps(S){
+  if(S.cloud) return renderOpsCloud(S);
   const pn=S.proto_name, qi=S.items.find(i=>i.id==='qq')||{}, pl=(qi.links||[])[0]||{href:'#',label:''};
   const g=S.game||{}, gon=g.on||g.left;
   const ext=ic('i-ext').replace('class="ic"','class="ic ext"');
@@ -886,11 +949,11 @@ function renderFeatures(S){
     row('发语音',esc(String(by('voice').name||'').split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||''),ext('换模型、语音',base+'/#/providers'),v.btn,v.extra),
     row('记忆',esc(by('memory').text),S.answers.memory?ext('看她记住了什么',base+'/#/plugin-view/astrbot_plugin_livingmemory/dashboard'):'',m.btn,m.extra),
     row('表情包',esc(by('memes').text)+(S.meme_freq?'。下面选她发多少（她不是每句都挑表情，「多」就是挑中就发）':''),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,
-      e.extra+(S.meme_freq?`<div class="seg" role="group" aria-label="表情包发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.meme_freq===k?'on':''}" aria-pressed="${S.meme_freq===k}" data-run="meme_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
+      e.extra+(S.cloud&&e.btn.includes('data-run="import"')?'<div class="res">补装在服务器上跑，用的是服务器的网，不占这台电脑。</div>':'')+(S.meme_freq?`<div class="seg" role="group" aria-label="表情包发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.meme_freq===k?'on':''}" aria-pressed="${S.meme_freq===k}" data-run="meme_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
     row('看视频、听语音',esc(by('vision').text),S.answers.video?ext('截几张、看多长',base+'/#/extension?open_config=astrbot_plugin_dafeiyu_video'):'',vd.btn,vd.extra),
     row('主动找你聊','隔一阵没聊，她会自己来找你',ext('多久一次',base+'/#/extension?open_config=astrbot_plugin_proactive_chat'),''),
     row('发说说','用小号在 QQ 空间发动态',ext('设置、看发过的',base+'/#/plugin-view/astrbot_plugin_qzone/dashboard'),''),
-    row('开机自启',esc(auto.text),'',auto.fix?`<button class="btn sm primary" data-run="autostart_fix">${esc(auto.fix.label)}</button>`:auto.state==='ok'?`<span class="pill ok">${ic('i-check')}设好了</span>`:`<span class="pill ${esc(auto.state)}">${ic(STATE_IC[auto.state]||'i-minus')}${esc(STATE_TX[auto.state]||'')}</span>`),
+    row(S.cloud?'服务器重启后':'开机自启',esc(auto.text),'',auto.fix?`<button class="btn sm primary" data-run="autostart_fix">${esc(auto.fix.label)}</button>`:auto.state==='ok'?`<span class="pill ok">${ic('i-check')}设好了</span>`:`<span class="pill ${esc(auto.state)}">${ic(STATE_IC[auto.state]||'i-minus')}${esc(STATE_TX[auto.state]||'')}</span>`),
     '<div class="sub">群里</div>',
     row('群里插话','插得越多越容易被风控（QQ 的安全检查），别调太高。群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句。下面选她在群里回谁的时候怎么标出来',ext('插不插、插多少',base+'/#/extension?open_config=astrbot_plugin_group_chat_plus'),'',
       `<div class="seg" role="group" aria-label="群里回复时">${[['off','不标'],['mention','@ 对方'],['quote','引用那句'],['both','都要']].map(([k,l])=>`<button class="${S.group_reply===k?'on':''}" aria-pressed="${S.group_reply===k}" data-run="group_reply" data-body='{"mode":"${k}"}'>${l}</button>`).join('')}</div>`),
@@ -909,7 +972,7 @@ function renderFeatures(S){
     <dt></dt><dd>${secs}</dd></dl>`;
   if($('#inst').dataset.h!==inst){ setHTML($('#inst'),inst); $$('[data-folder2]',$('#inst')).forEach(b=>b.addEventListener('click',()=>folder(b.dataset.folder2))); }
 }
-function upAsk(u){ return `用大肥鱼的安装 Skill，帮我把 ${u.name} 从 ${u.local} 更新到 ${u.latest}：先备份，只换程序，我的设置、记忆和登录都别动。`; }
+function upAsk(u){ return S&&S.cloud?`用大肥鱼的安装 Skill，帮我把云服务器上的 ${u.name} 从 ${u.local} 更新到 ${u.latest}（她装在云服务器上）：先备份，只换程序，我的设置、记忆和登录都别动。`:`用大肥鱼的安装 Skill，帮我把 ${u.name} 从 ${u.local} 更新到 ${u.latest}：先备份，只换程序，我的设置、记忆和登录都别动。`; }
 function renderUpdates(S){
   const ups=S.updates||[]; let n=ups.filter(u=>u.state==='new').length+(S.qq_upgrade?1:0);
   const N=$('#upN'); N.hidden=!n; N.textContent=n||'';
@@ -930,10 +993,10 @@ function renderUpdates(S){
     else side=`<span class="tag">查不到</span>`;
     const ver=u.state==='new'?`${esc(u.local)} → <b>${esc(u.latest)}</b>`:esc(u.local||'');
     const notes=u.state==='new'&&u.id==='skill'&&u.notes&&u.notes.length?`<ul class="notes">${u.notes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'';
-    const d=u.state==='new'&&u.id==='skill'?`有新版，点一下就换上，大约半分钟，她照常聊天。${notes?'这一版改了：':''}`
+    const d=u.state==='new'&&u.id==='skill'?`有新版，点一下就换上，${S.cloud?'服务器上那份一起换，大约一分钟':'大约半分钟'}，她照常聊天。${notes?'这一版改了：':''}`
       :u.state==='new'?`${esc(u.what)}有新版。升级前 Agent 会先备份，升级时她会下线一两分钟。`:u.state==='latest'?`${esc(u.what)}已经是最新。`:u.state==='local'?esc(u.what):`${esc(u.what)}这会儿查不到最新版（网络不通），过会儿再看。`;
     return `<div class="upd"><div><b>${esc(u.name)}</b><span class="d">${d}</span>${notes}</div><span class="ver">${ver}</span>${side}</div>`; };
-  const wb={id:'wb',name:'大肥鱼工作台',what:'这个窗口。跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。',local:S.version,state:'local'};
+  const wb={id:'wb',name:WB_NAME(),what:'这个窗口。跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。',local:S.version,state:'local'};
   $('#upds').innerHTML=(ups.map(row).join('')||`<div class="upd"><div><b>正在查新版本</b><span class="d">第一次打开要查一会儿（GitHub 和 PyPI），不影响别的。</span></div><span></span><span></span></div>`)
     +(ups.some(u=>u.id==='skill')?'':row(wb));
   $$('[data-up]').forEach(b=>b.addEventListener('click',()=>{ const u=ups.find(x=>x.id===b.dataset.up); copy(upAsk(u),b,'已复制，粘到 DeepSeek Harness 里发出去'); }));
@@ -952,10 +1015,30 @@ const ASKS=[
   ['i-archive','用备份还原','用大肥鱼的安装 Skill，用桌面上的备份{=大肥鱼备份-xxxx.zip}还原大肥鱼：先列出要动哪些东西，我确认了再动。'],
   ['i-x','卸载大肥鱼','用大肥鱼的安装 Skill，帮我把大肥鱼卸干净：先列清单给我看，问我要不要先备份，我回「确认」了再删。'],
 ];
+const ASKS_CLOUD=[
+  ['i-persona','换成我自己的角色','用大肥鱼的安装 Skill，帮我把大肥鱼换成我自己的角色（她装在云服务器上）：名字叫{名字}，性格是{性格}，说话像{谁}。'],
+  ['i-wave','换个声音','用大肥鱼的安装 Skill，帮我给大肥鱼换个{=更温柔}的声音（她装在云服务器上，只能用在线语音），先出三个让我听了再挑。'],
+  ['i-users','让她进我的 QQ 群','用大肥鱼的安装 Skill，让大肥鱼也在我的 QQ 群里聊（她装在云服务器上），群号是{群号}。'],
+  ['i-help','她不回话了','大肥鱼不回话了。她装在云服务器上，用大肥鱼的安装 Skill 帮我查查是哪出了问题，先只看不改，查完告诉我打算怎么修。（工作台的「复制求助信息」存在桌面上的 txt 我一起发给你）'],
+  ['i-chat','小号老是掉线','用大肥鱼的安装 Skill，我的小号老是掉线（她装在云服务器上），帮我查查原因，先只看不改，查完告诉我怎么办。'],
+  ['i-archive','搬回这台电脑','用大肥鱼的安装 Skill，帮我把云服务器上的大肥鱼搬回这台电脑：桌面上有工作台备份的{=云端大肥鱼备份-xxxx.zip}，先列出要装什么、动哪些东西，我确认了再动。'],
+  ['i-server','换一台服务器','用大肥鱼的安装 Skill，帮我把大肥鱼搬到另一台云服务器上：桌面上有工作台备份的{=云端大肥鱼备份-xxxx.zip}，新服务器我{=还没买}，先讲清楚步骤，我确认了再动。'],
+  ['i-x','云上的不要了','用大肥鱼的安装 Skill，帮我把云服务器上的大肥鱼卸掉（她装在云服务器上）：先列清单给我看，问我要不要先备份，我回「确认」了再删。服务器要不要退订我自己去控制台看。'],
+];
 const ASK_NAPCAT=['i-chat','小号老是掉线','用大肥鱼的安装 Skill，我的小号老是掉线，帮我查查原因，先只看不改，查完告诉我怎么办。'];
 const ASK_EXTRA={memory:'用大肥鱼的安装 Skill，帮我给大肥鱼加上记忆功能：先讲清楚要装什么、多大、花不花钱，我同意了再装。',voice:'用大肥鱼的安装 Skill，帮我给大肥鱼加上发语音：先讲清楚有哪几种、花不花钱，我挑了再装。',video:'用大肥鱼的安装 Skill，帮我给大肥鱼加上看视频（要能听懂视频里说的话）：先讲清楚要下多大，我同意了再装。',bge:'大肥鱼的记忆模型 bge-m3 不见了。用大肥鱼的安装 Skill 帮我重新下好，再把记忆打开。',memfix:'大肥鱼的工作台说记忆没接好，她记不住事。用大肥鱼的安装 Skill 帮我看看是缺硅基流动的密钥、还是本机记忆模型没下；要花钱或下大文件先问我，不想弄就帮我把记忆关掉。',hear:'大肥鱼看视频听不到声音，工作台说识别模型没装好。用大肥鱼的安装 Skill 帮我补装（install-asr.ps1，先走国内 ModelScope）；还是下不动就告诉我怎么用浏览器下。',pet:'大肥鱼的工作台说桌宠连不上她。用大肥鱼的安装 Skill 帮我看看（setup-pet.ps1 -Check），能修就帮我修好。'};
+const ASK_CLOUD={server:'大肥鱼装在云服务器上，工作台说服务器那边出了问题。用大肥鱼的安装 Skill 帮我查查（云端那套），先只看不改，查完告诉我打算怎么修。（工作台的「复制求助信息」存在桌面上的 txt 我一起发给你）',
+  disk:'大肥鱼装在云服务器上，工作台说服务器硬盘快满了。用大肥鱼的安装 Skill 帮我看看是什么占的地方，先列出来，我确认了再清，她的记忆、聊天记录和设置别动。',
+  memory:'用大肥鱼的安装 Skill，帮我给云服务器上的大肥鱼加上记忆功能：先讲清楚要装什么、花不花钱、服务器内存够不够，我同意了再装。',
+  voice:'用大肥鱼的安装 Skill，帮我给云服务器上的大肥鱼加上发语音（服务器没有显卡，只能用在线语音）：先讲清楚有哪几种、花不花钱，我挑了再装。',
+  video:'用大肥鱼的安装 Skill，帮我给云服务器上的大肥鱼加上看视频：先讲清楚要下多大、服务器内存够不够，我同意了再装。',
+  memfix:'大肥鱼装在云服务器上，工作台说记忆没接好，她记不住事。用大肥鱼的安装 Skill 帮我看看是缺硅基流动的密钥还是别的；要花钱先问我，不想弄就帮我把记忆关掉。'};
+const askText=k=>(S&&S.cloud&&ASK_CLOUD[k])||ASK_EXTRA[k]||'';
 function renderAsks(S){
-  const list=ASKS.map(a=>a[1].startsWith('QQ 升级')&&S.proto!=='snowluma'?ASK_NAPCAT:a);
+  if(S.cloud) return renderAskList(ASKS_CLOUD);
+  renderAskList(ASKS.map(a=>a[1].startsWith('QQ 升级')&&S.proto!=='snowluma'?ASK_NAPCAT:a));
+}
+function renderAskList(list){
   const box=$('#asks'); box.innerHTML='';
   list.forEach(a=>{ const el=document.createElement('div'); el.className='ask';
     const body=esc(a[2]).replace(/\{(=?)([^}]+)\}/g,(m,f,p)=>`<span class="blank" contenteditable="true" data-ph="${p}">${f?p:''}</span>`);
@@ -965,7 +1048,23 @@ function renderAsks(S){
 function textOf(p){ let s=''; p.childNodes.forEach(n=>{ if(n.nodeType===3) s+=n.textContent; else if(n.classList&&n.classList.contains('blank')) s+=(n.textContent.trim()||'……'); else s+=n.textContent; }); return s; }
 
 /* 帮助 */
+function renderFAQCloud(S){
+  const c=S.cloud||{}, v=S.answers.voice;
+  const cost=v==='3'?'豆包语音按说话时长扣，大约一分钟一块钱。':'';
+  const faq=[
+    ['怎么跟她聊？',`用你的大号私聊她就行${S.install.group?'，在群里就 @ 她':''}。别的人她不理。想让她忘掉之前聊的，私聊发 <code>/reset</code>。`],
+    ['我关机了她还在吗？','在。她住在云服务器上，24 小时开着，你的电脑关不关都不影响她。这个窗口只是从这台电脑连过去看看、修修。'],
+    ['她不回我了怎么办？','先看左边和「她的状态」，哪项是红的就点那项的修复。还不行，点「复制求助信息」，把那句话和桌面上的 txt 一起发给 Agent。'],
+    ['小号被踢下线了？','QQ 风控（安全检查）挺严，小号偶尔被踢很正常，不是坏了。点「扫码登录」，二维码出在这个窗口里，用登着小号的手机 QQ 扫。同一个小号别同时在两个地方挂机器人，会互相挤掉。'],
+    ['一个月大概花多少钱？',`两份钱：服务器按月或按年交（到期日记在「到期续费」那项，快到了会提醒）；聊天走 DeepSeek，按用量扣，私聊很省，群聊和发图费一点。${cost}`],
+    ['服务器重启了怎么办？','一般不用管，她会自己起来。要是「服务器重启后」那项是黄的，QQ 可能要重新扫一次码；照那项说的点「补上」，以后就不用扫了。'],
+    ['换服务器、不想续费了？','先点「备份到桌面」，把服务器上她的记忆、人设、设置拉回来。再去「交给 Agent」复制「换一台服务器」或「搬回这台电脑」那句。备份里有你的密钥，别发给别人。'],
+    ['这个窗口关了会怎样？',`不影响她。想再看就双击桌面「${WB_NAME()}」。打开 AstrBot、NapCat 后台的时候窗口要开着（后台是通过它连到服务器的）。`],
+  ];
+  $('#faq').innerHTML=faq.map((f,i)=>`<details ${i===0?'open':''}><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('');
+}
 function renderFAQ(S){
+  if(S.cloud) return renderFAQCloud(S);
   const re=S.proto==='snowluma'?'大肥鱼掉线-双击重登':'大肥鱼掉线-双击扫码';
   const v=S.answers.voice, cost=v==='4'?'本机 Breeze 语音不花钱。':v==='3'?'豆包语音按说话时长扣，大约一分钟一块钱。':'';
   const faq=[
@@ -980,7 +1079,9 @@ function renderFAQ(S){
   $('#faq').innerHTML=faq.map((f,i)=>`<details ${i===0?'open':''}><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('');
 }
 function renderHelp(S){
-  $('#hpDir').textContent=S.dir; $('#hpBk').textContent=S.paths.backend;
+  const c=S.cloud;
+  $('#hpDirT').textContent=c?'她住在':'她装在';
+  $('#hpDir').textContent=c?`${c.where||'云服务器'} · ${c.dir}（这台电脑上的工作目录：${S.dir}）`:S.dir; $('#hpBk').textContent=S.paths.backend;
   $('#vers').innerHTML=(S.versions||[]).map(v=>`<span>${esc(v[0])}</span>${esc(v[1])}`).join('');
 }
 
@@ -992,8 +1093,10 @@ setInterval(agoTick,1000);
 let once=false;
 function render(s){
   S=s;
-  $('#brandSub').textContent='v'+S.version.split('.').slice(0,2).join('.')+' · '+S.dir; $('#brandSub').title=S.dir;
-  $('#agoBox').classList.remove('down'); lastOk=Date.now(); agoTick();
+  const vv='v'+S.version.split('.').slice(0,2).join('.');
+  $('#brandName').textContent=WB_NAME(); if(document.title!==WB_NAME()) document.title=WB_NAME();
+  $('#brandSub').textContent=S.cloud?`${vv} · 云服务器${S.cloud.where?' · '+S.cloud.where:''}`:vv+' · '+S.dir; $('#brandSub').title=S.dir;
+  $('#agoBox').classList.remove('down'); lastOk=S.cloud&&S.cloud.at?Math.min(Date.now(),S.cloud.at*1000):Date.now(); agoTick();
   $('#consoleLink').href=S.backend+'/#/console';
   $('#logSrcQQ').textContent=S.proto_name;
   if(!once){ once=true; renderAsks(S); renderFAQ(S); setTimeout(()=>$('#items').classList.remove('intro'),1500); }
@@ -1006,7 +1109,7 @@ function showDown(kind){
   setFace('warn','idle');
   $('#chip').textContent='工作台停了';
   $('#headline').textContent=kind==='token'?'请从桌面打开':'工作台的小服务停了';
-  $('#reason').textContent=kind==='token'?'这个页面要从桌面「大肥鱼工作台」打开才能用。':'她本身不受影响。关掉这个窗口，再双击桌面「大肥鱼工作台」就好。';
+  $('#reason').textContent=kind==='token'?`这个页面要从桌面「${WB_NAME()}」打开才能用。`:`她本身不受影响。关掉这个窗口，再双击桌面「${WB_NAME()}」就好。`;
   $('#say').innerHTML=pickLine('down',S); setHTML($('#heroActs'),''); progOff($('#heroProg'));
 }
 

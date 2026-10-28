@@ -13,6 +13,8 @@
     3 分钟没人来问状态、也没有在跑的动作，就自己退出。
 不做的事：不改网络和代理设置；不碰工作目录以外的程序（用户自己的桌面 QQ 不关不动）。
     升级只管安装 Skill 和工作台自己（换文件，旧版先备份到 <工作目录>\\旧版\\）；AstrBot、SnowLuma、配置包里的插件只提醒，交给 Agent 升。
+云端模式：她装在云服务器上（private\\cloud.txt 写着服务器、这台电脑上没有 AstrBot）时，页面一样，状态、日志、动作都转给同目录的 cloud.py，
+    它用系统自带的 ssh 去服务器上问（服务器那头跑 cloud_remote.py）。这时用的 Python 是 finish.ps1 放进 <工作目录>\\python\\ 的便携版。
 
 用法：pythonw.exe server.py [--dir <工作目录>] [--open | --no-open] [--port 26185]
 """
@@ -49,8 +51,11 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:  # 便携版 Python（python312._pth）不把脚本所在的文件夹放进 sys.path
+    sys.path.insert(0, str(HERE))
+import cloud  # noqa: E402  云端模式
 ASSETS = HERE / "assets"  # 页面用的图和字体；只发这个文件夹里、下面这几种扩展名的文件
 ASSET_TYPES = {".webp": "image/webp", ".woff2": "font/woff2"}
 SCRIPTS = HERE.parent  # Skill 里是 scripts\，装好后是 <工作目录>\tools\（finish.ps1 把要用的 .ps1 一起拷过去）
@@ -72,6 +77,8 @@ LAST_SEEN = time.time()
 LOCK = threading.RLock()
 CACHE = {}       # 内存缓存：key -> (时间, 值)
 SERVER = None
+CLOUD = False    # 云端模式：main() 里认
+cloud.S = sys.modules[__name__]
 
 
 # ---------------------------------------------------------------- 小工具
@@ -218,7 +225,7 @@ def load_secret_values():
         kv = read_kv(f)
         if kv and len(kv) >= 1 and all(":" in ln.replace("：", ":") for ln in raw.splitlines() if ln.strip()):
             for k, v in kv.items():
-                if "url" in k or k in ("username", "user", "账号", "用户名"):
+                if "url" in k or k in ("username", "user", "账号", "用户名") or (f.name.lower() == "cloud.txt" and k != "host" and k != "ip"):
                     continue
                 if len(v) >= 4:
                     vals.add(v)
@@ -752,6 +759,10 @@ def astr_plugin_on(tok, name):
 # 群里回复时：(@ 对方, 引用对方那句)。AstrBot 自带的两个开关，改了马上生效；@ 只在群里加，引用私聊也会带。
 # 她回的是语音时两样都不加（AstrBot 只给纯文字、图片的回复加）
 GROUP_REPLY = {"off": (False, False), "mention": (True, False), "quote": (False, True), "both": (True, True)}
+GROUP_REPLY_MSG = {"off": "改好了：群里回话不 @ 人、也不引用。",
+                   "mention": "改好了：她在群里回谁就先 @ 谁（私聊不 @）。发语音那几条不带 @。",
+                   "quote": "改好了：她回话会引用对方那句，一眼看出在回哪条（私聊也会引用）。发语音那几条不带引用。",
+                   "both": "改好了：她在群里回谁就 @ 谁，还引用对方那句。发语音那几条不带。"}
 
 
 def group_reply_mode():
@@ -775,15 +786,13 @@ def act_group_reply(job, mode):
     ps["reply_with_mention"], ps["reply_with_quote"] = GROUP_REPLY[mode]
     astr_call(tok, "PUT", "/config-profiles/default", cfg)
     drop_cache("status")
-    return job.done(True, {"off": "改好了：群里回话不 @ 人、也不引用。",
-                           "mention": "改好了：她在群里回谁就先 @ 谁（私聊不 @）。发语音那几条不带 @。",
-                           "quote": "改好了：她回话会引用对方那句，一眼看出在回哪条（私聊也会引用）。发语音那几条不带引用。",
-                           "both": "改好了：她在群里回谁就 @ 谁，还引用对方那句。发语音那几条不带。"}[mode])
+    return job.done(True, GROUP_REPLY_MSG[mode])
 
 
 # 表情包发多少：她给回复挑中表情以后，按这个百分比真发图（meme_manager 的 generation.emotion.probability）。
 # 她本来就不是每句都挑（10-28 群里大约四成回复挑了），所以「多」就是挑中就发
 MEME_FREQ = {"few": 30, "mid": 60, "many": 100}
+MEME_FREQ_MSG = {"few": "改好了：表情包少发点，她挑中表情也只有三成会发。", "mid": "改好了：她挑中表情，六成会发图。", "many": "改好了：她挑中表情就发图。"}
 
 
 def meme_freq():
@@ -811,9 +820,7 @@ def act_meme_freq(job, level):
     conf.setdefault("generation", {}).setdefault("emotion", {})["probability"] = MEME_FREQ[level]
     astr_call(tok, "PUT", "/plugins/config", {"plugin_id": "meme_manager", "config": conf}, 60)
     drop_cache("status")
-    return job.done(True, {"few": "改好了：表情包少发点，她挑中表情也只有三成会发。",
-                           "mid": "改好了：她挑中表情，六成会发图。",
-                           "many": "改好了：她挑中表情就发图。"}[level])
+    return job.done(True, MEME_FREQ_MSG[level])
 
 
 def game_boot_hook(on):
@@ -1122,6 +1129,8 @@ def update_disk(**kv):
 
 
 def check_balance(force=False):
+    if CLOUD:
+        return cloud.refresh(force_balance=force)
     disk = read_json(STATE / "cache.json", {}) or {}
     bal = disk.get("balance") or {}
     fresh = 600 if bal.get("state") == "ok" else 120
@@ -1228,7 +1237,7 @@ def check_updates(force=False):
         return up
     res = {"at": now(), "dir": str(DIR), "wb": VERSION, "items": {}}
     ok = True
-    av = astrbot_version()
+    av = cloud.astrbot_version() if CLOUD else astrbot_version()
     if av:
         lv = latest_pypi("astrbot")
         ok &= bool(lv)
@@ -1238,13 +1247,15 @@ def check_updates(force=False):
         lv = latest_github("SnowLuma/SnowLuma")
         ok &= bool(lv)
         res["items"]["snowluma"] = {"local": sv, "latest": lv}
-    kv = skill_version()
+    kv = cloud.skill_version_effective() if CLOUD else skill_version()
     if kv:
         ls = latest_skill()
         ok &= bool(ls)
+        if CLOUD and ls.get("version") and ver_tuple(str(ls["version"])) < ver_tuple(skill_version()):
+            kv = skill_version()  # 这台电脑上的比 GitHub 上的还新（没发布的版本）：不提示「更新」，免得换回旧的
         res["items"]["skill"] = {"local": kv, "latest": str(ls.get("version") or ""), "notes": [str(x) for x in (ls.get("notes") or [])][:6],
                                  "reimport": [str(x) for x in (ls.get("reimport") or [])]}
-    pv = pack_version()
+    pv = "" if CLOUD else pack_version()
     if pv:
         res["items"]["pack"] = {"local": pv, "latest": latest_pack_version()}
     res["ok"] = ok
@@ -1306,7 +1317,47 @@ def collect_versions(proto, voice, mem):
     return versions
 
 
+def deepseek_item(has_key, bal, day, wl):
+    """DeepSeek 那一项：has_key＝密钥文件在不在，bal、day＝cache.json 里的余额和今天头一次查到的余额，wl＝白名单开没开（云端模式也用这个）。"""
+    dlinks = [{"label": "看每天花了多少", "href": "https://platform.deepseek.com/usage"}, {"label": "充值", "href": "https://platform.deepseek.com/top_up"}]
+    dwhat = "她想怎么回话靠它，按用量扣钱。"
+    if not has_key:
+        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", "没找到 DeepSeek 的密钥文件（private 里的 deepseek-key.txt），她回不了话。交给 Agent 重新接一下。", links=dlinks[:1])
+    elif bal.get("state") == "ok":
+        amt = bal.get("amount", "")
+        try:
+            v = float(amt)
+        except ValueError:
+            v = None
+        used = ""
+        try:
+            if day.get("date") == datetime.now().strftime("%Y-%m-%d") and v is not None:
+                d = float(day["amount"]) - v
+                if d >= 0.005:
+                    used = f"从今天 {datetime.fromtimestamp(day.get('at', now())):%H:%M} 到现在用了 ¥{d:.2f}。"
+        except (ValueError, KeyError, TypeError):
+            pass
+        if v is not None and (v <= 0 or not bal.get("available", True)):
+            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", f"余额 ¥{amt}，用完了，她回不了话。充一点马上就好。", links=dlinks[::-1], extra={"balance": amt})
+        elif v is not None and v < 2:
+            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "warn", f"余额只剩 ¥{amt}，记得充一点。{used}", links=dlinks[::-1], extra={"balance": amt})
+        else:
+            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "ok", f"余额 ¥{amt}。{used}", links=dlinks, extra={"balance": amt})
+    elif bal.get("state") == "auth":
+        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", "密钥（扣钱的钥匙）不对或者被删了，她回不了话。交给 Agent 换一把新的。", links=[{"label": "管理密钥", "href": "https://platform.deepseek.com/api_keys"}])
+    elif bal.get("state") in ("net", "http"):
+        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "这会儿查不到余额（连不上 DeepSeek），不一定影响聊天，过会儿再看。", links=dlinks, pill="查不到")
+    else:
+        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "正在查余额……", links=dlinks, pill="在查")
+    if wl is False and ds["state"] in ("ok", "warn", "unk"):
+        # 白名单关着是他自己选的，不改颜色，只把代价写明白
+        ds["text"] = ds["text"].strip() + "白名单没开：谁 @ 她都能用，花的是你的余额。"
+    return ds
+
+
 def collect_status():
+    if CLOUD:
+        return cloud.collect_status()
     a = answers()
     proto = protocol()
     port = backend_port()
@@ -1370,40 +1421,7 @@ def collect_status():
     # 3 DeepSeek
     bal = (read_json(STATE / "cache.json", {}) or {}).get("balance") or {}
     day = (read_json(STATE / "cache.json", {}) or {}).get("balance_day") or {}
-    dlinks = [{"label": "看每天花了多少", "href": "https://platform.deepseek.com/usage"}, {"label": "充值", "href": "https://platform.deepseek.com/top_up"}]
-    dwhat = "她想怎么回话靠它，按用量扣钱。"
-    if not (DIR / "private" / "deepseek-key.txt").exists():
-        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", "没找到 DeepSeek 的密钥文件（private 里的 deepseek-key.txt），她回不了话。交给 Agent 重新接一下。", links=dlinks[:1])
-    elif bal.get("state") == "ok":
-        amt = bal.get("amount", "")
-        try:
-            v = float(amt)
-        except ValueError:
-            v = None
-        used = ""
-        try:
-            if day.get("date") == datetime.now().strftime("%Y-%m-%d") and v is not None:
-                d = float(day["amount"]) - v
-                if d >= 0.005:
-                    used = f"从今天 {datetime.fromtimestamp(day.get('at', now())):%H:%M} 到现在用了 ¥{d:.2f}。"
-        except (ValueError, KeyError, TypeError):
-            pass
-        if v is not None and (v <= 0 or not bal.get("available", True)):
-            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", f"余额 ¥{amt}，用完了，她回不了话。充一点马上就好。", links=dlinks[::-1], extra={"balance": amt})
-        elif v is not None and v < 2:
-            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "warn", f"余额只剩 ¥{amt}，记得充一点。{used}", links=dlinks[::-1], extra={"balance": amt})
-        else:
-            ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "ok", f"余额 ¥{amt}。{used}", links=dlinks, extra={"balance": amt})
-    elif bal.get("state") == "auth":
-        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "bad", "密钥（扣钱的钥匙）不对或者被删了，她回不了话。交给 Agent 换一把新的。", links=[{"label": "管理密钥", "href": "https://platform.deepseek.com/api_keys"}])
-    elif bal.get("state") in ("net", "http"):
-        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "这会儿查不到余额（连不上 DeepSeek），不一定影响聊天，过会儿再看。", links=dlinks, pill="查不到")
-    else:
-        ds = item("deepseek", "DeepSeek", "i-bolt", dwhat, "unk", "正在查余额……", links=dlinks, pill="在查")
-    if whitelist_on() is False and ds["state"] in ("ok", "warn", "unk"):
-        # 白名单关着是他自己选的，不改颜色，只把代价写明白
-        ds["text"] = ds["text"].strip() + "白名单没开：谁 @ 她都能用，花的是你的余额。"
-    items.append(ds)
+    items.append(deepseek_item((DIR / "private" / "deepseek-key.txt").exists(), bal, day, whitelist_on()))
 
     # 4 记忆：看实际接成什么样（插件开没开、指向哪个模型、在线的有没有 key、本机的模型在不在），answers.json 只当「他选过要不要」
     st = today_stats()
@@ -1676,6 +1694,8 @@ def level_of(s):
 
 
 def read_logs(src, n=200):
+    if CLOUD:
+        return cloud.read_logs(src, n)
     if src == "brain":
         f = DIR / "astrbot" / "run.log"
         if not f.exists():
@@ -1686,8 +1706,12 @@ def read_logs(src, n=200):
         if not f:
             return {"missing": "没找到登 QQ 那个程序的日志。", "lines": []}
         rxs = [SL_RX, NC_RX]
+    return parse_log_lines(tail_lines(f, 600_000, 1500), rxs, n, f.name)
+
+
+def parse_log_lines(lines, rxs, n, fname):
     out = []
-    for ln in tail_lines(f, 600_000, 1500):
+    for ln in lines:
         if NOISE.search(ln):
             continue
         rec = None
@@ -1715,7 +1739,7 @@ def read_logs(src, n=200):
     out.reverse()
     errs = sum(1 for r in out if r["lv"] == "err")
     warns = sum(1 for r in out if r["lv"] == "warn")
-    return {"lines": out, "errors": errs, "warns": warns, "file": f.name}
+    return {"lines": out, "errors": errs, "warns": warns, "file": fname}
 
 
 # ---------------------------------------------------------------- 长动作
@@ -2241,14 +2265,17 @@ def download(urls, dest, job, p0, p1, min_bytes):
 def act_skill_update(job):
     if SCRIPTS.name.lower() != "tools":
         return job.done(False, "这个工作台是从 Skill 文件夹直接开的，没法自己更新。")
-    if any((import_log_state(b) or {}).get("running") for b in SKILL_BLOCKS):
+    if any((import_log_state(b) or {}).get("running") for b in SKILL_BLOCKS) or \
+            (CLOUD and any((cloud.imp_state(cloud.SNAP["data"] or {}, b) or {}).get("running") for b in SKILL_BLOCKS)):
         return job.done(False, "正在补装东西，等它装完再更新。")
     job.set("查 GitHub 上的新版……", 5)
-    cur, ls = skill_version(), latest_skill()
+    cur, ls = (cloud.skill_version_effective() if CLOUD else skill_version()), latest_skill()
     if not ls:
         return job.done(False, "查不到新版（GitHub 和加速站都没连上），过会儿再点。")
     if ver_tuple(ls["version"]) <= ver_tuple(cur):
         return job.done(True, f"已经是最新（{cur}）。")
+    if CLOUD and ver_tuple(ls["version"]) < ver_tuple(skill_version()):
+        return job.done(True, f"这台电脑上的（{skill_version()}）比 GitHub 上最新的（{ls['version']}）还新，没换。")
     dl = DIR / "downloads"
     dl.mkdir(parents=True, exist_ok=True)
     zp = dl / f"dafeiyu-install-{ls['version']}.zip"
@@ -2295,7 +2322,10 @@ def act_skill_update(job):
         replaced.append(d)
 
     pack, newpack = DIR / "dafeiyu-config-pack", src / "pack" / "dafeiyu-config-pack"
-    if (newpack / "tools" / "import_dafeiyu.py").is_file():
+    kit_err = ""
+    if CLOUD:  # 配置包和导入工具在服务器上用：整包传上去换掉 kit/dafeiyu-install（旧的服务器上挪进 old/）
+        kit_err = cloud.push_kit(job, zp, 60, 74)
+    elif (newpack / "tools" / "import_dafeiyu.py").is_file():
         job.set("换上新版配置包……", 65)
         try:
             if pack.is_dir():
@@ -2320,11 +2350,13 @@ def act_skill_update(job):
         return job.done(False, "新版 Skill 换上了，工作台没换成：" + redact(out.strip()[-160:]) + " 交给 Agent 重跑一次收尾那步。")
 
     msg = f"更新好了：{cur} → {new}。"
+    if kit_err:
+        msg += f"这台电脑上的换好了，服务器上那份没换成（{kit_err}），过会儿再点一次「一键更新」。"
     if not replaced:
         msg += "没找到装着的 Skill（可能挪过），只换了工作台和配置包；Agent 那边要用新版，照资料文档重新装一次 Skill。"
     re_ = "、".join(SKILL_BLOCKS.get(b, b) for b in nv.get("reimport") or [])
     if re_:
-        msg += f"这一版还要重新导入{re_}：在 DeepSeek Harness 里说「用大肥鱼的安装 Skill，按新版说明重新导入{re_}」。"
+        msg += f"这一版还要重新导入{re_}：在 DeepSeek Harness 里说「用大肥鱼的安装 Skill，按新版说明重新导入{re_}{'（她装在云服务器上）' if CLOUD else ''}」。"
     msg += f"旧版备份在工作目录的「旧版」文件夹里。工作台马上自己重开一下。"
     update_disk(updates={})  # 新的工作台起来重新查，别拿旧结果说「有新版」
     drop_cache("versions")
@@ -2335,6 +2367,8 @@ def act_skill_update(job):
 def restart_self():
     """换了新版工作台：等页面拿到结果，起一个新的接着用同一个端口和 token（窗口不用关），自己退出。"""
     time.sleep(3)
+    if CLOUD:
+        cloud.stop()  # 隧道让新的那个自己开
     env = dict(os.environ, DFY_WB_TOKEN=TOKEN)
     subprocess.Popen([sys.executable, "-X", "utf8", str(HERE / "server.py"), "--dir", str(DIR), "--no-open", "--takeover", "--port", str(PORT)],
                      cwd=tempfile.gettempdir(), env=env, creationflags=NO_WINDOW | 0x00000200, close_fds=True)
@@ -2353,7 +2387,7 @@ def open_folder(which, path=""):
         subprocess.Popen(["explorer.exe", f"/select,{path}"], creationflags=NO_WINDOW)
         return
     if which == "backend":
-        p = DIR / "private" / "backend.txt"
+        p = DIR / "private" / ("cloud-backend.txt" if CLOUD else "backend.txt")
         if p.exists():
             subprocess.Popen(["explorer.exe", f"/select,{p}"], creationflags=NO_WINDOW)
             return
@@ -2507,14 +2541,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = {}
         name = url.path[len("/api/action/"):] if url.path.startswith("/api/action/") else ""
         try:
+            acts = cloud.ACTIONS if CLOUD else ACTIONS
             if name == "import":
                 blk = str(body.get("block", ""))
                 if blk not in ("memes", "memory", "voice", "video"):
                     return self.send(400, {"ok": False, "error": "block"})
-                j = start_job("import", "import-" + blk, "补装" + {"memes": "表情包", "memory": "记忆", "voice": "语音", "video": "看视频"}[blk], act_import, blk)
+                j = start_job("import", "import-" + blk, "补装" + {"memes": "表情包", "memory": "记忆", "voice": "语音", "video": "看视频"}[blk], cloud.act_import if CLOUD else act_import, blk)
                 return self.send(200, {"ok": True, "job": j.view()})
-            if name in ACTIONS:
-                group, title, fn = ACTIONS[name]
+            if name in acts:
+                group, title, fn = acts[name]
                 j = start_job(name, group, title, fn, body)
                 drop_cache("status")
                 return self.send(200, {"ok": True, "job": j.view()})
@@ -2523,7 +2558,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True})
             if name == "refresh":
                 drop_cache("status", "net", "procs", "stats", "memes", "ollama")
-                background(check_balance, True)
+                background(check_balance, True)  # 云端模式：连同状态一起去服务器上再问一遍
                 if body.get("updates"):
                     background(check_updates, True)
                 return self.send(200, {"ok": True})
@@ -2603,7 +2638,7 @@ def alive(info):
 def watchdog():
     while True:
         time.sleep(15)
-        busy = any(j["state"] == "running" for j in running_jobs())
+        busy = any(j["state"] == "running" for j in running_jobs()) or (CLOUD and cloud.in_use())
         if not busy and now() - LAST_SEEN > OPTS.idle:
             log("3 分钟没人看，退出")
             threading.Thread(target=SERVER.shutdown, daemon=True).start()
@@ -2611,7 +2646,7 @@ def watchdog():
 
 
 def main():
-    global DIR, STATE, TOKEN, PORT, ALLOWED_HOSTS, OPTS, SERVER, LAST_SEEN
+    global DIR, STATE, TOKEN, PORT, ALLOWED_HOSTS, OPTS, SERVER, LAST_SEEN, CLOUD
     ap = argparse.ArgumentParser(description="大肥鱼工作台的本机小服务")
     ap.add_argument("--dir", default="")
     ap.add_argument("--open", action="store_true", help="开 Edge 小窗口（已经有服务在跑就只开窗口）")
@@ -2630,6 +2665,9 @@ def main():
         ap.error("从 Skill 文件夹直接跑要给 --dir <工作目录>")
     STATE = DIR / "logs" / "workbench"
     STATE.mkdir(parents=True, exist_ok=True)
+    CLOUD = cloud.detect(DIR)
+    if CLOUD and OPTS.port == DEFAULT_PORT:
+        OPTS.port = DEFAULT_PORT + 1  # 同一台电脑上本机那套的工作台也开着时，别抢同一个端口
     load_secret_values()
     if OPTS.game_off:
         j = Job("game_off", "game", "打完了，恢复")
@@ -2673,16 +2711,21 @@ def main():
     TOKEN = reuse if reuse and PORT == OPTS.port else secrets.token_urlsafe(24)
     ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
     write_json(STATE / "server.json", {"port": PORT, "token": TOKEN, "pid": os.getpid(), "started": now(), "version": VERSION})
-    log(f"起来了，端口 {PORT}，工作目录 {DIR}")
+    log(f"起来了，端口 {PORT}，工作目录 {DIR}" + ("（云端模式）" if CLOUD else ""))
     LAST_SEEN = now()
     threading.Thread(target=watchdog, daemon=True).start()
-    background(check_balance)
+    if CLOUD:
+        cloud.start()  # 后台问服务器（顺手查余额）、开隧道
+    else:
+        background(check_balance)
     background(check_updates)
     if OPTS.open and not OPTS.no_open:
         open_window(PORT, TOKEN)
     try:
         SERVER.serve_forever(poll_interval=1)
     finally:
+        if CLOUD:
+            cloud.stop()
         cur = read_json(STATE / "server.json", {}) or {}
         if cur.get("pid") == os.getpid():
             try:
