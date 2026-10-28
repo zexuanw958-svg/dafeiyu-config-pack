@@ -1,0 +1,11 @@
+{
+  "name": "astrbot_plugin_dafeiyu_video",
+  "what": "看视频：截几张画面交给对话模型，再把视频里说的话转成文字（本机识别，或者硅基流动）",
+  "opt_in": "video",
+  "always_reinstall": true,
+  "config": {
+    "ffmpeg_path": "{ffmpeg}",
+    "asr_dir": "{asr_dir}",
+    "asr_key": "{硅基流动key}"
+  }
+}

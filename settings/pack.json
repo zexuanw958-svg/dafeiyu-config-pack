@@ -1,4 +1,5 @@
 {
+  "version": "2026.10.28",
   "说明": "导入工具按这份清单改 AstrBot。想调哪项，改这里的值再运行一次导入工具就行。{主人会话} 会换成你机器人的会话 ID，{对话模型} 会换成你在后台建的 DeepSeek 模型。",
   "persona": {
     "id": "大肥鱼",
@@ -41,7 +42,13 @@
         "typo_error_rate": 0.02,
         "enable_proactive_chat": false,
         "enable_memory_injection": false,
-        "enable_web_panel": false
+        "enable_web_panel": false,
+        "enable_image_processing": true,
+        "image_to_text_scope": "mention_only",
+        "image_to_text_provider_id": "{对话模型}",
+        "enable_image_description_cache": true,
+        "max_images_per_message": 3,
+        "enable_emoji_filter": true
       }
     },
     {
@@ -105,8 +112,8 @@
     "set_signature": "admin"
   },
   "meme_packs": [
-    {"id": "blue-fat-fish-meme-pack", "default": true, "use": true},
-    {"id": "deepseek-fanart-meme-pack", "default": false, "use": true}
+    {"id": "blue-fat-fish-meme-pack", "default": true, "use": true, "size_mb": 485},
+    {"id": "deepseek-fanart-meme-pack", "default": false, "use": true, "size_mb": 143}
   ],
   "memory": {
     "ollama": {
@@ -158,7 +165,7 @@
     }
   },
   "sing": {
-    "说明": "唱歌插件 astrbot_plugin_dafeiyu_sing：语音选 3（豆包）时导入工具才装。backend 填 doubao 就用发语音那套豆包凭证在云端唱，不用另开服务；填 soulx 改用本地 SoulX-Singer（要 N 卡，还要先按插件 README 开唱歌服务）",
+    "说明": "唱歌插件 astrbot_plugin_dafeiyu_sing：2.0 起默认不装（效果不稳定，不对外承诺）；回答文件里写 \"sing\": \"1\" 并且语音选 3（豆包）时才装。backend 填 doubao 就用发语音那套豆包凭证在云端唱，不用另开服务；填 soulx 改用本地 SoulX-Singer（要 N 卡，还要先按插件 README 开唱歌服务）",
     "backend": "doubao"
   }
 }

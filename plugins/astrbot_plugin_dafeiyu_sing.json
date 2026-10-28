@@ -2,6 +2,7 @@
   "name": "astrbot_plugin_dafeiyu_sing",
   "what": "唱歌：用豆包语音那套凭证，唱的是她自编的小调",
   "only_with_voice": "3",
+  "opt_in": "sing",
   "always_reinstall": true,
   "config": {
     "backend": "{唱歌后端}"

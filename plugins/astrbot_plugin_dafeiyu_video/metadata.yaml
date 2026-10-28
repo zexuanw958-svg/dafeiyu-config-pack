@@ -1,0 +1,8 @@
+name: astrbot_plugin_dafeiyu_video
+display_name: 大肥鱼看视频
+desc: 有人发视频时，用 ffmpeg 均匀截几张画面交给对话模型看；装了本机语音识别（或者配了硅基流动的 key）还能听懂视频里说的话。私聊都看，群里被 @ 才看
+help: 电脑上要有 ffmpeg。私聊直接发视频；群里发视频时 @ 她
+version: v0.2.0
+author: zexuan604
+support_platforms:
+  - aiocqhttp

@@ -1,0 +1,49 @@
+{
+  "ffmpeg_path": {
+    "description": "ffmpeg.exe 的位置",
+    "type": "string",
+    "hint": "留空就自己找：系统 PATH、winget 装的位置。找不到的话她会说自己看不了视频",
+    "default": ""
+  },
+  "max_seconds": {
+    "description": "最多看前多少秒",
+    "type": "int",
+    "hint": "更长的视频只看前面这么长",
+    "default": 180
+  },
+  "max_frames": {
+    "description": "最多截几张画面",
+    "type": "int",
+    "hint": "每张按一张图收钱（DeepSeek 一张图约 0.002 元）；短视频会少截几张",
+    "default": 6
+  },
+  "group_need_at": {
+    "description": "群里要 @ 她才看视频",
+    "type": "bool",
+    "hint": "关掉的话，群聊插件决定回复的视频都会看，花钱会多",
+    "default": true
+  },
+  "keep_frames": {
+    "description": "把截的画面留在聊天记录里",
+    "type": "bool",
+    "hint": "默认不留：省钱，但之后追问画面细节她会说没看清。打开后能追问，之后每轮都多带这几张图",
+    "default": false
+  },
+  "asr_dir": {
+    "description": "本机语音识别的文件夹（听懂视频里说的话）",
+    "type": "string",
+    "hint": "装好本机识别后填 C:\\dafeiyu\\asr 这样的文件夹。留空就看 ffmpeg 旁边有没有 asr 文件夹；都没有再用下面的硅基流动 key",
+    "default": ""
+  },
+  "asr_key": {
+    "description": "硅基流动 API key（没装本机识别时用，可不填）",
+    "type": "string",
+    "hint": "没装本机识别、又填了这个，就用硅基流动免费的 SenseVoiceSmall 把声音转成文字；都没有就只看画面",
+    "default": ""
+  },
+  "asr_model": {
+    "description": "转写模型",
+    "type": "string",
+    "default": "FunAudioLLM/SenseVoiceSmall"
+  }
+}
