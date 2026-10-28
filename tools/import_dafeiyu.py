@@ -632,6 +632,8 @@ def block_memory(S):
             lconf = (r.get("data") or {}).get("config") if isinstance(r.get("data"), dict) else None
             if isinstance(lconf, dict):
                 set_path(lconf, "provider_settings.embedding_provider_id", conf["id"])
+                for k, v in m.get("plugin_config", {}).items():
+                    set_path(lconf, k, v)
                 mem_ok = api.ok(api.call("PUT", "/plugins/config", {"plugin_id": lm, "config": lconf})) and good
     api.call("PATCH", "/plugins/enabled", {"plugin_id": lm, "enabled": mem_ok})
     if mem_ok:

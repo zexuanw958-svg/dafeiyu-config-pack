@@ -128,7 +128,9 @@
       "embedding_api_base": "https://api.siliconflow.cn/v1",
       "embedding_model": "BAAI/bge-m3"
     },
-    "embedding_dimensions": 1024
+    "embedding_dimensions": 1024,
+    "_plugin_config": "记忆插件 LivingMemory 自己的设置。攒满 summary_trigger_rounds 轮（插件默认 10）才总结一次；开 memorize 工具后，跟她说「记住…」她当场存",
+    "plugin_config": {"agent_tools.enable_memorize_tool": true}
   },
   "voice": {
     "trigger_probability": 0.33,
