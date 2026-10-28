@@ -4,7 +4,20 @@
 
 这个包里只有我们写的设置和人格。插件和表情包都是导入时从原作者那里下载的，包里不带别人的东西。
 
-## 用之前
+## 从零装：交给 AI 帮手（测试版）
+
+还没装 AstrBot、NapCat 的，可以让 AI 帮手从零装好整套，包括这个配置包：`skill/dafeiyu-install` 是写给 AI 帮手看的安装手册（Skill）。它先给电脑做个体检，问你几个问题，按你的选择装，哪一项下不动就先跳过，不耽误聊天。现在是测试版，只在 DeepSeek Harness 桌面版上从头测过。
+
+要准备：Windows 10/11 电脑；DeepSeek Harness 桌面版；一个充了值的 DeepSeek API key；一个 QQ 小号（千万别用大号，第三方程序登 QQ 有被限制的风险）和登着小号的手机。
+
+1. 到本仓库的 Releases 页下载 `dafeiyu-install.zip`，放进电脑的「下载」文件夹。GitHub 下载慢的，在下载地址前面加上 `https://gh.dpik.top/` 再打开。
+2. 打开 DeepSeek Harness，新开一个对话，整句粘进去：
+   > 帮我装一个技能：把「下载」文件夹里的 dafeiyu-install.zip 解压，把里面的 dafeiyu-install 文件夹放进 %USERPROFILE%\.agents\skills\（没有这个文件夹就新建），装好告诉我。
+3. 装好以后再新开一个对话，说「帮我装大肥鱼」，照它说的做。要你亲手做的只有几下：把 key 粘进它打开的记事本、手机 QQ 扫码登小号、Windows 弹窗时点一下、最后用大号给她发第一句话。
+
+装完桌面上有「大肥鱼工作台」：看她在不在线、一键修、补装功能、备份，打游戏前点「打游戏模式」腾出显卡。卡住了就在工作台点「复制求助信息」，粘给 AI 帮手或者发给我们。
+
+## 用之前（已经装好 AstrBot 的）
 
 先按视频把这几步做完：装好 AstrBot 和 NapCat，QQ 小号扫码登上，接好 DeepSeek，在 QQ 上发消息她能回。
 
