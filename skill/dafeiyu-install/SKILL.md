@@ -3,7 +3,7 @@ name: dafeiyu-install
 description: 在 Windows 10/11 上从零把一个 QQ 小号做成「大肥鱼」聊天机器人：AstrBot 当大脑、NapCat 或 SnowLuma 登 QQ（两个都能全自动装）、DeepSeek 当模型，导入大肥鱼配置包，可选长期记忆、语音（豆包或本机 Breeze）、看图看视频、换成自己的角色；装在哪个盘由用户挑；也能从这台 Windows 经 SSH 装到云服务器上，帮着挑服务器配置。用户说「帮我装大肥鱼」「把 DeepSeek 养进 QQ」「装个 QQ 聊天机器人」「把机器人换成我自己的角色」「给她换个声音」「让她能看视频」「她看不懂图」「装到云服务器上」「帮我看看这台服务器够不够」「换成 SnowLuma」时使用。观众的电脑要是 Windows，不支持 macOS。
 ---
 
-# 帮观众装大肥鱼（v0.3 草稿，2026-10-28）
+# 帮观众装大肥鱼（v0.3.1，2026-10-28）
 
 你在帮一个可能完全不懂电脑的人，在他自己的 Windows 电脑上装一个 QQ 聊天机器人。整套流程以两次真机代部署、Vol.04 教程和 10-27、10-28 干净账户实测为准，细节在 `references/`。
 
@@ -243,16 +243,23 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 
 ## 怎么装这个 Skill
 
-- DeepSeek Harness：把整个 `dafeiyu-install` 文件夹放进 `%USERPROFILE%\.agents\skills\`（`%USERPROFILE%\.dsh\skills\` 也行），重开对话后说「帮我装大肥鱼」。命令行版、桌面版 0.2.1-rc.3 都实测过（10-28 桌面版：粘一句「把「下载」文件夹里的 dafeiyu-install.zip 解压，把里面的 dafeiyu-install 文件夹放进 %USERPROFILE%\.agents\skills\」，约 1 分钟，点一次「允许一次」）。
-- WorkBuddy：把整个文件夹放进 `%USERPROFILE%\.workbuddy\skills\`，重开对话后说「帮我装大肥鱼」。（目录存在；它认不认这种 SKILL.md 格式，待实测。）
+他先装好 DeepSeek Harness（或 WorkBuddy），新开对话粘这一句（资料文档和仓库 README 里都有）：
+
+> 帮我装一个叫 dafeiyu-install 的技能，装好直接用它帮我装大肥鱼：从 https://gh.dpik.top/https://github.com/zexuanw958-svg/dafeiyu-config-pack/releases/latest/download/dafeiyu-install.zip 下载压缩包（下不动就去掉开头的 https://gh.dpik.top/ 再试），解压后把里面的 dafeiyu-install 文件夹放进你读技能的文件夹（DeepSeek Harness 是 %USERPROFILE%\.agents\skills\，WorkBuddy 是 %USERPROFILE%\.workbuddy\skills\，没有就新建；里面已经有 dafeiyu-install 的，先把旧的挪到别处）。放好后读一遍它的 SKILL.md，照着开始。
+
+- 10-28 DeepSeek Harness 桌面版实测：两三分钟装好接着体检，点一次「允许一次」（往工作区外面写文件要提权）。它的沙盒里 `curl`、`Invoke-WebRequest` 连 HTTPS 会失败（SEC_E_NO_CREDENTIALS），`node` 的 fetch 能下，它会自己换着试。
+- 技能文件夹里别留改了名的旧副本（`dafeiyu-install.旧-…` 这种）：Agent 会把两份同名 Skill 都读进来。旧的挪到 `<工作目录>\旧版\` 或者别处。
+- WorkBuddy 放 `%USERPROFILE%\.workbuddy\skills\`；它认不认这种 SKILL.md，还没从头测过。
 
 ## 更新这个 Skill（他说「更新大肥鱼」「更新一下 Skill」，或者工作台提示有新版）
 
-新版发在 GitHub `zexuanw958-svg/dafeiyu-config-pack` 的 Releases 页，附件都叫 `dafeiyu-install.zip`，里面带着同一版的配置包。
+新版发在 GitHub `zexuanw958-svg/dafeiyu-config-pack` 的 Releases，最新一版固定在 `https://github.com/zexuanw958-svg/dafeiyu-config-pack/releases/latest/download/` 下面两个文件：`skill-version.json`（版本号、`notes` 改了什么、`reimport` 要重新导入哪几块）和 `dafeiyu-install.zip`（里面带同一版的配置包）。前面加 `https://gh.dpik.top/` 这类加速地址也能下。
 
-1. 查最新版：读 `https://api.github.com/repos/zexuanw958-svg/dafeiyu-config-pack/releases`，第一条就是最新的（测试版也算），记下它的标题、正文和 `dafeiyu-install.zip` 的下载地址。跟他说一句新版改了什么（正文里写的），他点头再更新。
-2. 下载：先 `. "<S>\common.ps1"`，再 `Get-GitHubFile -Url <下载地址> -OutFile <工作目录>\downloads\dafeiyu-install-新版.zip -MinBytes 100000`（会自己走加速地址）。解压到 `<工作目录>\downloads\skill-新版\`，确认里面有 `dafeiyu-install\SKILL.md` 和 `dafeiyu-install\pack\dafeiyu-config-pack\tools\import_dafeiyu.py`。
-3. 换 Skill：把旧的 `%USERPROFILE%\.agents\skills\dafeiyu-install` 改名成 `dafeiyu-install.旧-<月日-时分>`（别删，新版有问题能换回来），新的整个文件夹放进去。
-4. 换配置包和工作台：把 `<工作目录>\dafeiyu-config-pack` 改名成 `dafeiyu-config-pack.旧-<月日-时分>`，把新 Skill 里的 `pack\dafeiyu-config-pack` 拷过去；再跑新 Skill 的 `finish.ps1 -Dir <工作目录>`（会把新工作台拷进 `tools\`，开机自启、快捷方式照旧）。
-5. 要不要重新导入：只按 Release 正文写的来（比如「插件要重新导入」就跑 `import-pack.ps1 -Dir <工作目录> -Only plugins`）；正文没写就不导，人设、记忆、聊天记录都不动。他自己改过人设的，导 `core` 前先问他。
-6. 让他打开工作台看一眼全绿，再私聊她一句。改名留下的旧文件夹，等他用几天没问题再问他删不删。
+**先让他用工作台**：「更新」页「安装 Skill 和工作台」那行点「一键更新」，它自己下载、备份、换 Skill 和配置包、重跑收尾、重开工作台，半分钟左右；要重新导入的，它更新完会告诉他怎么跟你说。工作台版本低于 1.1（测试版 1 装的）没有这个按钮，才照下面手动换：
+
+1. 查新版：下 `skill-version.json`，跟本 Skill 的 `version.json` 比版本号。跟他说一句新版改了什么（`notes`），他点头再更新。
+2. 下载：先 `. "<S>\common.ps1"`，再 `Get-GitHubFile -Url https://github.com/zexuanw958-svg/dafeiyu-config-pack/releases/latest/download/dafeiyu-install.zip -OutFile <工作目录>\downloads\dafeiyu-install-新版.zip -MinBytes 100000`（会自己走加速地址）。解压到 `<工作目录>\downloads\skill-新版\`，确认有 `dafeiyu-install\SKILL.md`、`dafeiyu-install\version.json` 和 `dafeiyu-install\pack\dafeiyu-config-pack\tools\import_dafeiyu.py`。
+3. 备份：建 `<工作目录>\旧版\<月日-时分>\`，把旧的技能文件夹（WorkBuddy 也装了的话那份一起）、`<工作目录>\dafeiyu-config-pack`、`<工作目录>\tools` 拷进去。
+4. 换：删掉技能文件夹里旧的 `dafeiyu-install`，放新的；`<工作目录>\dafeiyu-config-pack` 换成新 Skill 里的 `pack\dafeiyu-config-pack`；跑新 Skill 的 `finish.ps1 -Dir <工作目录>`（换工作台、记下新版本号，开机自启和快捷方式照旧）。
+5. 要不要重新导入：只按 `reimport` 来（比如有 `plugins` 就跑 `import-pack.ps1 -Dir <工作目录> -Only plugins`）；空的就不导，人设、记忆、聊天记录都不动。他自己改过人设的，导 `core` 前先问他。
+6. 让他打开工作台看一眼全绿，再私聊她一句。`旧版` 里的备份，等他用几天没问题再问他删不删。

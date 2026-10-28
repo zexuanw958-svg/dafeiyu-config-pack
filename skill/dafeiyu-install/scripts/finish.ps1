@@ -45,6 +45,10 @@ Say "桌面放了「$reName」"
 New-Item -ItemType Directory -Force "$Dir\tools\workbench" | Out-Null
 Copy-Item "$PSScriptRoot\workbench\*" "$Dir\tools\workbench\" -Recurse -Force
 foreach ($f in 'workbench.ps1', 'common.ps1', 'backup.ps1', 'diag.ps1', 'import-pack.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
+# 工作台「更新」页靠这两个文件：现在是哪一版 Skill、Skill 放在哪（只记技能文件夹里的；从下载文件夹跑的不记）
+$skillHome = Split-Path $PSScriptRoot
+if (Test-Path "$skillHome\version.json") { Copy-Item "$skillHome\version.json" "$Dir\tools\skill-version.json" -Force }
+if ((Split-Path (Split-Path $skillHome) -Leaf) -eq 'skills') { [IO.File]::WriteAllText("$Dir\tools\skill-home.txt", $skillHome, (New-Object Text.UTF8Encoding($false))) }
 [IO.File]::WriteAllText("$Dir\tools\workbench.cmd", "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0workbench\open.ps1`"`r`n", (New-Object Text.UTF8Encoding($false)))
 New-Lnk "$desktop\大肥鱼工作台.lnk" "$Dir\tools\workbench.cmd" "$Dir\tools" 7 '看大肥鱼在不在、一键修、补装、备份'
 if (Test-Path "$Dir\tools\workbench\dafeiyu.ico") { $l = $ws.CreateShortcut("$desktop\大肥鱼工作台.lnk"); $l.IconLocation = "$Dir\tools\workbench\dafeiyu.ico,0"; $l.Save() }

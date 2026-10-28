@@ -10,12 +10,12 @@
 
 要准备：Windows 10/11 电脑；DeepSeek Harness 桌面版；一个充了值的 DeepSeek API key；一个 QQ 小号（千万别用大号，第三方程序登 QQ 有被限制的风险）和登着小号的手机。
 
-1. 到本仓库的 Releases 页下载 `dafeiyu-install.zip`，放进电脑的「下载」文件夹。GitHub 下载慢的，在下载地址前面加上 `https://gh.dpik.top/` 再打开。
-2. 打开 DeepSeek Harness，新开一个对话，整句粘进去：
-   > 帮我装一个技能：把「下载」文件夹里的 dafeiyu-install.zip 解压，把里面的 dafeiyu-install 文件夹放进 %USERPROFILE%\.agents\skills\（没有这个文件夹就新建），装好告诉我。
-3. 装好以后再新开一个对话，说「帮我装大肥鱼」，照它说的做。要你亲手做的只有几下：把 key 粘进它打开的记事本、手机 QQ 扫码登小号、Windows 弹窗时点一下、最后用大号给她发第一句话。
+1. 装好 DeepSeek Harness 桌面版（WorkBuddy 也行，还没从头测过）。
+2. 新开一个对话，把下面这句整句粘进去发出：
+   > 帮我装一个叫 dafeiyu-install 的技能，装好直接用它帮我装大肥鱼：从 https://gh.dpik.top/https://github.com/zexuanw958-svg/dafeiyu-config-pack/releases/latest/download/dafeiyu-install.zip 下载压缩包（下不动就去掉开头的 https://gh.dpik.top/ 再试），解压后把里面的 dafeiyu-install 文件夹放进你读技能的文件夹（DeepSeek Harness 是 %USERPROFILE%\.agents\skills\，WorkBuddy 是 %USERPROFILE%\.workbuddy\skills\，没有就新建；里面已经有 dafeiyu-install 的，先把旧的挪到别处）。放好后读一遍它的 SKILL.md，照着开始。
+3. 它会自己下载、装好 Skill，接着给电脑做体检、问你几个问题。中途弹出「允许」就点「允许一次」。要你亲手做的只有几下：把 key 粘进它打开的记事本、手机 QQ 扫码登小号、Windows 弹窗时点一下、最后用大号给她发第一句话。
 
-装完桌面上有「大肥鱼工作台」：看她在不在线、一键修、补装功能、备份，打游戏前点「打游戏模式」腾出显卡。卡住了就在工作台点「复制求助信息」，粘给 AI 帮手或者发给我们。
+装完桌面上有「大肥鱼工作台」：看她在不在线、一键修、补装功能、备份，打游戏前点「打游戏模式」腾出显卡。Skill 出了新版，工作台「更新」页会提醒，点「一键更新」就换上。卡住了就在工作台点「复制求助信息」，粘给 AI 帮手或者发给我们。
 
 ## 用之前（已经装好 AstrBot 的）
 

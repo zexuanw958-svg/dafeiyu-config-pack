@@ -492,7 +492,7 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
       <!-- 更新 -->
       <section class="page" id="p-up">
         <div id="qqwarnBox"></div>
-        <div class="sec"><h2>版本</h2><small>工作台只提醒，不自己升级；要升级复制一句话交给 Agent</small></div>
+        <div class="sec"><h2>版本</h2><small>安装 Skill 和工作台点一下就能更新；别的复制一句话交给 Agent</small></div>
         <div class="card" id="upds"></div>
         <div class="upfoot"><span id="upAt">正在查……</span><button class="btn sm ghost" id="upNow"><svg class="ic"><use href="#i-refresh"/></svg>现在查一次</button></div>
       </section>
@@ -693,7 +693,7 @@ function summarize(S){
 
 /* ---------- 动作 ---------- */
 const heroJob={id:null};
-const SAY_FIX={start_astrbot:'伸个懒腰，马上起来',restart_astrbot:'我先眯一下，马上回来',relogin:'窗口弹出来了，照着做嘛',restart_qq:'换个姿势重新连',start_breeze:'等一下下，我在清嗓子……',start_ollama:'把记性找回来……',game_on:'好，我先安静点，只打字',game_off:'清清嗓子，把记性找回来……',import:'在搬东西，别催',autostart_fix:'记下了，下次开机自己起来',diag:'我把情况写下来',backup:'打包中，别碰我的东西'};
+const SAY_FIX={start_astrbot:'伸个懒腰，马上起来',restart_astrbot:'我先眯一下，马上回来',relogin:'窗口弹出来了，照着做嘛',restart_qq:'换个姿势重新连',start_breeze:'等一下下，我在清嗓子……',start_ollama:'把记性找回来……',game_on:'好，我先安静点，只打字',skill_update:'换身新衣服，马上回来',game_off:'清清嗓子，把记性找回来……',import:'在搬东西，别催',autostart_fix:'记下了，下次开机自己起来',diag:'我把情况写下来',backup:'打包中，别碰我的东西'};
 async function act(name, body, ui){
   ui=ui||{};
   try{
@@ -727,6 +727,8 @@ const CONFIRM={
   restart_qq:S=>({title:'重启登 QQ 的程序？',sub:S.proto==='snowluma'?'只重启 SnowLuma，不碰你的桌面 QQ。小号一般会自己连回来，大约 20 秒。':'只重启 NapCat 和它自带的那份 QQ，不碰你平时用的 QQ。一般能快速登录，不行会叫你扫码。',go:'重启'}),
   game_on:S=>{ const w=[(S.answers||{}).voice==='4'?'Breeze 语音（占显存）':'',(S.answers||{}).memory==='1'?'Ollama 记忆（占约 1.2 GB 内存）':''].filter(Boolean).join('和');
     return {title:'开打游戏模式？',sub:`关掉本机的${w}，大约 10 秒。她照样回消息，只是只打字、这段时间说的事不记（以前记住的都在）。打完点「打完了，恢复」；忘了点也没事，重启电脑会自己恢复。`,go:'开'}; },
+  skill_update:S=>{ const u=(S.updates||[]).find(x=>x.id==='skill')||{};
+    return {title:`更新到 ${u.latest||'新版'}？`,sub:`从 GitHub 下新版的安装 Skill 和工作台换上，大约半分钟。旧版先备份到工作目录的「旧版」文件夹；她照常聊天，人设、记忆、聊天记录都不动。${(u.reimport||[]).length?'这一版还要重新导入一部分，更新完会告诉你怎么跟 Agent 说。':''}换完工作台会自己重开一下，这个窗口不用关。`,go:'更新'}; },
   game_off:S=>({title:'打完了，恢复？',sub:'把本机的语音和记忆开回来，大约半分钟。',go:'恢复'}),
   relogin:S=>({title:'重新登 QQ',sub:S.proto==='snowluma'?'会弹出一个黑色小窗口，照里面说的做：一般要在桌面 QQ 的窗口里点「登录」，是二维码就用小号的手机 QQ 扫一扫。最多等 10 分钟。':'会弹出一个黑色小窗口：先试不扫码直接登，不行会打开二维码页面，用小号的手机 QQ 扫一扫。最多等 10 分钟。',go:'开始'}),
 };
@@ -738,7 +740,7 @@ function confirmRun(name){
 }
 $('#cfGo').addEventListener('click',()=>{
   $('#cfFoot').style.display='none';
-  act(cfName,{},{box:$('#cfProg'), done:j=>{ progOff($('#cfProg')); const r=$('#cfRes'); r.classList.add('on'); r.classList.toggle('fail',j.state!=='ok'); $('use',r).setAttribute('href',j.state==='ok'?'#i-check':'#i-alert'); $('b',r).textContent=j.state==='ok'?'好了':'没成'; $('span',r).textContent=j.msg; }, fail:()=>{ $('#cfFoot').style.display='flex'; progOff($('#cfProg')); }});
+  act(cfName,{},{box:$('#cfProg'), done:j=>{ progOff($('#cfProg')); const r=$('#cfRes'); r.classList.add('on'); r.classList.toggle('fail',j.state!=='ok'); $('use',r).setAttribute('href',j.state==='ok'?'#i-check':'#i-alert'); $('b',r).textContent=j.state==='ok'?'好了':'没成'; $('span',r).textContent=j.msg; if(j.state==='ok'&&(j.data||{}).restart) waitRestart(); }, fail:()=>{ $('#cfFoot').style.display='flex'; progOff($('#cfProg')); }});
 });
 
 /* 备份 */
@@ -906,15 +908,16 @@ function renderUpdates(S){
     if(k==='sl'){ if(sl&&sl.state==='new') copy(upAsk(sl),null,'已复制，粘到 DeepSeek Harness 里发出去'); else toast('好，出了新版这里会提醒你'); }
     else copy(ASKS.find(a=>a[1].startsWith('QQ 升级'))?.[2].replace(/\{=?[^}]*\}/g,'')||'',null,'已复制，粘到 DeepSeek Harness 里发出去'); }));
   const row=u=>{ let side;
-    if(u.state==='new') side=`<button class="btn sm primary side" data-up="${esc(u.id)}">${ic('i-copy')}复制给 Agent 的话</button>`;
+    if(u.state==='new') side=u.id==='skill'?`<button class="btn sm primary side" data-run="skill_update">${ic('i-refresh')}一键更新</button>`:`<button class="btn sm primary side" data-up="${esc(u.id)}">${ic('i-copy')}复制给 Agent 的话</button>`;
     else if(u.state==='latest') side=`<span class="pill ok side">${ic('i-check')}最新</span>`;
     else side=`<span class="pill unk side">${ic('i-minus')}查不到</span>`;
     const ver=u.state==='new'?`${esc(u.local)} → <i>${esc(u.latest)}</i>`:esc(u.local||'');
-    const d=u.state==='new'?`${esc(u.what)}有新版。升级前 Agent 会先备份，升级时她会下线一两分钟。`:u.state==='latest'?`${esc(u.what)}已经是最新。`:`${esc(u.what)}这会儿查不到最新版（网络不通），过会儿再看。`;
+    const d=u.state==='new'&&u.id==='skill'?`有新版${u.notes&&u.notes.length?'，改了：'+u.notes.map(esc).join('；'):''}。点一下就换上，大约半分钟，她照常聊天。`
+      :u.state==='new'?`${esc(u.what)}有新版。升级前 Agent 会先备份，升级时她会下线一两分钟。`:u.state==='latest'?`${esc(u.what)}已经是最新。`:`${esc(u.what)}这会儿查不到最新版（网络不通），过会儿再看。`;
     return `<div class="upd"><div class="ico">${ic(u.icon)}</div><div><b>${esc(u.name)}</b><span class="ver">${ver}</span></div><span class="d">${d}</span>${side}</div>`; };
   const wb={id:'wb',name:'大肥鱼工作台',icon:'i-toggle',what:'这个窗口。',local:S.version,state:'local'};
   $('#upds').innerHTML=(ups.map(row).join('')||`<div class="upd"><div class="ico">${ic('i-refresh')}</div><div><b>正在查新版本</b></div><span class="d">第一次打开要查一会儿（GitHub 和 PyPI），不影响别的。</span></div>`)
-    +`<div class="upd"><div class="ico">${ic(wb.icon)}</div><div><b>${wb.name}</b><span class="ver">${esc(wb.local)}</span></div><span class="d">跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。</span></div>`;
+    +(ups.some(u=>u.id==='skill')?'':`<div class="upd"><div class="ico">${ic(wb.icon)}</div><div><b>${wb.name}</b><span class="ver">${esc(wb.local)}</span></div><span class="d">跟着安装 Skill 走：Skill 更新了，让 Agent 重跑一次收尾那步就会换上新的。</span></div>`);
   $$('[data-up]').forEach(b=>b.addEventListener('click',()=>{ const u=ups.find(x=>x.id===b.dataset.up); copy(upAsk(u),b,'已复制，粘到 DeepSeek Harness 里发出去'); }));
   $('#upAt').textContent=S.updates_at?`上次查：${new Date(S.updates_at*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} · 每 6 小时查一次`:'正在查……';
 }
@@ -985,11 +988,18 @@ function showDown(kind){
 }
 
 /* ---------- 轮询 ---------- */
-let pollT, fails=0;
+let pollT, fails=0, restartAt=0;
+/* 更新完工作台自己重开：等新的小服务应答（pid 变了）就刷新页面，换上新版界面 */
+async function waitRestart(){
+  restartAt=Date.now(); let pid0=null; try{ pid0=(await api('/api/ping')).pid; }catch(e){}
+  const tick=async()=>{ try{ const r=await api('/api/ping'); if(pid0===null||r.pid!==pid0){ location.reload(); return; } }catch(e){}
+    if(Date.now()-restartAt<45000) setTimeout(tick,1500); else { restartAt=0; poll(); } };
+  setTimeout(tick,3000);
+}
 async function poll(){
   clearTimeout(pollT);
   try{ const s=await api('/api/status'); fails=0; render(s); }
-  catch(e){ fails++; if(e.code===401||!TOKEN) showDown('token'); else if(fails>=2||!S) showDown('down'); }
+  catch(e){ fails++; if(restartAt&&Date.now()-restartAt<45000){} else if(e.code===401||!TOKEN) showDown('token'); else if(fails>=2||!S) showDown('down'); }
   pollT=setTimeout(poll,10000);
 }
 $('#refresh').addEventListener('click',async e=>{ const b=e.currentTarget; b.classList.remove('spinonce'); void b.offsetWidth; b.classList.add('spinonce'); $('#ago').textContent='正在查…'; try{ await api('/api/action/refresh',{}); }catch(_){} setTimeout(poll,600); });

@@ -11,7 +11,8 @@
 安全：每次启动生成随机 token，/api/* 都要带 X-DFY-Token；校验 Host 头（防 DNS rebinding），POST 再校验 Origin。
     private\\ 里的 key、口令、密码只在这里读，任何响应、日志都不带；QQ 号一律打码。
     3 分钟没人来问状态、也没有在跑的动作，就自己退出。
-不做的事：不改网络和代理设置；不碰工作目录以外的程序（用户自己的桌面 QQ 不关不动）；不直接升级任何东西。
+不做的事：不改网络和代理设置；不碰工作目录以外的程序（用户自己的桌面 QQ 不关不动）。
+    升级只管安装 Skill 和工作台自己（换文件，旧版先备份到 <工作目录>\\旧版\\）；AstrBot、SnowLuma、配置包里的插件只提醒，交给 Agent 升。
 
 用法：pythonw.exe server.py [--dir <工作目录>] [--open | --no-open] [--port 26185]
 """
@@ -32,6 +33,9 @@ import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
+import shutil
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,13 +49,14 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HERE = Path(__file__).resolve().parent
 SCRIPTS = HERE.parent  # Skill 里是 scripts\，装好后是 <工作目录>\tools\（finish.ps1 把要用的 .ps1 一起拷过去）
 IS_WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if IS_WIN else 0
 DEFAULT_PORT = 26185
 GH_PROXIES = ["https://gh.dpik.top/", "https://edgeone.gh-proxy.com/", "https://hk.gh-proxy.org/", "https://gh-proxy.org/", ""]
+SKILL_REPO = "zexuanw958-svg/dafeiyu-config-pack"  # 安装 Skill 发在这个仓库的 Releases，附件 dafeiyu-install.zip + skill-version.json
 MEME_NAMES = {"blue-fat-fish-meme-pack": "蓝色大肥鱼表情包", "deepseek-fanart-meme-pack": "DeepSeek 二创表情包"}
 
 DIR = Path(".")
@@ -1004,13 +1009,32 @@ def latest_pack_version():
     return ""
 
 
+def skill_version():
+    """装着的安装 Skill 是哪一版：finish.ps1 拷来的 tools\\skill-version.json；测试版 1（10-28）还没有这个文件，算 0.3.0。"""
+    v = str((read_json(SCRIPTS / "skill-version.json", {}) or {}).get("version") or "")
+    return v or ("0.3.0" if (SCRIPTS / "workbench").is_dir() else "")
+
+
+def latest_skill():
+    """GitHub 上最新一版的 skill-version.json（版本、改了什么、要不要重新导入）。releases/latest 这个固定地址加速站也认。"""
+    for p in GH_PROXIES[::-1][:1] + GH_PROXIES[:-1]:
+        try:
+            j = json.loads(fetch_text(p + f"https://github.com/{SKILL_REPO}/releases/latest/download/skill-version.json", timeout=10, limit=64_000))
+            if re.match(r"^\d+\.\d+\.\d+$", str(j.get("version") or "")):
+                j["_via"] = p
+                return j
+        except Exception:  # noqa: BLE001
+            continue
+    return {}
+
+
 def check_updates(force=False):
     disk = read_json(STATE / "cache.json", {}) or {}
     up = disk.get("updates") or {}
     ttl = 6 * 3600 if up.get("ok") else 1800
-    if not force and up and now() - up.get("at", 0) < ttl and up.get("dir") == str(DIR):
+    if not force and up and now() - up.get("at", 0) < ttl and up.get("dir") == str(DIR) and up.get("wb") == VERSION:  # 工作台换了版本就重查（新版可能多查几项）
         return up
-    res = {"at": now(), "dir": str(DIR), "items": {}}
+    res = {"at": now(), "dir": str(DIR), "wb": VERSION, "items": {}}
     ok = True
     av = astrbot_version()
     if av:
@@ -1022,6 +1046,12 @@ def check_updates(force=False):
         lv = latest_github("SnowLuma/SnowLuma")
         ok &= bool(lv)
         res["items"]["snowluma"] = {"local": sv, "latest": lv}
+    kv = skill_version()
+    if kv:
+        ls = latest_skill()
+        ok &= bool(ls)
+        res["items"]["skill"] = {"local": kv, "latest": str(ls.get("version") or ""), "notes": [str(x) for x in (ls.get("notes") or [])][:6],
+                                 "reimport": [str(x) for x in (ls.get("reimport") or [])]}
     pv = pack_version()
     if pv:
         res["items"]["pack"] = {"local": pv, "latest": latest_pack_version()}
@@ -1337,14 +1367,14 @@ def collect_status():
     disk = read_json(STATE / "cache.json", {}) or {}
     up = disk.get("updates") or {}
     updates = []
-    names = {"astrbot": ("AstrBot", "i-brain", "她的大脑。"), "snowluma": ("SnowLuma", "i-chat", "帮她登 QQ 的程序。"), "pack": ("大肥鱼配置包", "i-spark", "她的人设、插件和表情包清单。")}
+    names = {"skill": ("安装 Skill 和工作台", "i-toggle", "帮你装、帮你修的那套说明书，还有这个窗口。"), "astrbot": ("AstrBot", "i-brain", "她的大脑。"), "snowluma": ("SnowLuma", "i-chat", "帮她登 QQ 的程序。"), "pack": ("大肥鱼配置包", "i-spark", "她的人设、插件和表情包清单。")}
     for k, v in (up.get("items") or {}).items():
         if k == "snowluma" and proto != "snowluma":
             continue
         n, ic, w = names[k]
         lv, cv = v.get("latest", ""), v.get("local", "")
         state = "unknown" if not lv else ("new" if ver_tuple(lv) > ver_tuple(cv) else "latest")
-        updates.append({"id": k, "name": n, "icon": ic, "what": w, "local": cv, "latest": lv, "state": state})
+        updates.append({"id": k, "name": n, "icon": ic, "what": w, "local": cv, "latest": lv, "state": state, "notes": v.get("notes") or [], "reimport": v.get("reimport") or []})
 
     # 装机清单（T3）
     secrets_files = []
@@ -1873,6 +1903,153 @@ def act_autostart_fix(job):
     return job.done(True, ("补好了：" + "、".join(added) + "。下次开机她会自己起来。") if added else "本来就都设好了。")
 
 
+# ---------------------------------------------------------------- 更新安装 Skill 和工作台（只换文件，旧版先备份）
+
+SKILL_BLOCKS = {"core": "人设和基础设置", "plugins": "插件", "video": "看视频", "memory": "记忆", "voice": "语音", "memes": "表情包"}
+
+
+def skill_dirs():
+    """装着 dafeiyu-install 的技能文件夹：finish.ps1 记下的那个，加上 DeepSeek Harness、WorkBuddy 的默认位置（两个都装了就都换）。"""
+    home = Path(os.environ.get("USERPROFILE") or Path.home())
+    cands = [Path(read_text(SCRIPTS / "skill-home.txt"))] if read_text(SCRIPTS / "skill-home.txt") else []
+    cands += [home / ".agents" / "skills" / "dafeiyu-install", home / ".dsh" / "skills" / "dafeiyu-install", home / ".workbuddy" / "skills" / "dafeiyu-install"]
+    out, seen = [], set()
+    for c in cands:
+        if (c / "SKILL.md").is_file() and norm(c) not in seen:
+            seen.add(norm(c))
+            out.append(c)
+    return out
+
+
+def download(urls, dest, job, p0, p1, min_bytes):
+    """挨个地址试着下，下够 min_bytes 才算数。返回用上的地址，都不行返回空。"""
+    tmp = dest.with_name(dest.name + ".part")
+    for u in urls:
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": "dafeiyu-workbench/" + VERSION})
+            with urllib.request.urlopen(req, timeout=20) as r, open(tmp, "wb") as f:
+                total, got = int(r.headers.get("Content-Length") or 0), 0
+                while True:
+                    b = r.read(65536)
+                    if not b:
+                        break
+                    f.write(b)
+                    got += len(b)
+                    if total:
+                        job.set(f"下载新版……{got * 100 // total}%", p0 + (p1 - p0) * got / total)
+            if tmp.stat().st_size >= min_bytes:
+                os.replace(tmp, dest)
+                return u
+        except Exception:  # noqa: BLE001
+            continue
+    try:
+        tmp.unlink()
+    except OSError:
+        pass
+    return ""
+
+
+def act_skill_update(job):
+    if SCRIPTS.name.lower() != "tools":
+        return job.done(False, "这个工作台是从 Skill 文件夹直接开的，没法自己更新。")
+    if any((import_log_state(b) or {}).get("running") for b in SKILL_BLOCKS):
+        return job.done(False, "正在补装东西，等它装完再更新。")
+    job.set("查 GitHub 上的新版……", 5)
+    cur, ls = skill_version(), latest_skill()
+    if not ls:
+        return job.done(False, "查不到新版（GitHub 和加速站都没连上），过会儿再点。")
+    if ver_tuple(ls["version"]) <= ver_tuple(cur):
+        return job.done(True, f"已经是最新（{cur}）。")
+    dl = DIR / "downloads"
+    dl.mkdir(parents=True, exist_ok=True)
+    zp = dl / f"dafeiyu-install-{ls['version']}.zip"
+    url = f"https://github.com/{SKILL_REPO}/releases/latest/download/dafeiyu-install.zip"
+    via = ls.get("_via", "")
+    if not download([b + url for b in [via] + [p for p in GH_PROXIES if p != via]], zp, job, 8, 40, 100_000):
+        return job.done(False, "新版没下下来（网络不通），过会儿再点。")
+
+    job.set("检查下好的文件……", 42)
+    ext = Path(tempfile.mkdtemp(prefix="skill-", dir=str(dl)))
+    try:
+        with zipfile.ZipFile(zp) as z:
+            names = z.namelist()
+            if any(n.startswith(("/", "\\")) or ":" in n or ".." in Path(n).parts for n in names):
+                raise ValueError("里面的路径不对")
+            for need in ("dafeiyu-install/SKILL.md", "dafeiyu-install/version.json", "dafeiyu-install/scripts/finish.ps1"):
+                if need not in names:
+                    raise ValueError("缺 " + need)
+            z.extractall(ext)
+    except (zipfile.BadZipFile, ValueError, OSError) as e:
+        shutil.rmtree(ext, ignore_errors=True)
+        return job.done(False, f"下好的新版不完整（{e}），过会儿再点。")
+    src = ext / "dafeiyu-install"
+    nv = read_json(src / "version.json", {}) or {}
+    new = str(nv.get("version") or ls["version"])
+
+    # 旧的先整份拷进 <工作目录>\旧版\（不留在技能文件夹里：Agent 会把两份同名 Skill 都读进去）
+    bk = DIR / "旧版" / f"{datetime.now():%m%d-%H%M}-Skill{cur}"
+    job.set("备份旧版……", 48)
+    shutil.copytree(SCRIPTS, bk / "tools", dirs_exist_ok=True)
+    replaced = []
+    for i, d in enumerate(skill_dirs()):
+        job.set(f"换上新版 Skill（{d.parent.parent.name}）……", 52 + 3 * i)
+        keep = bk / f"skill-{d.parent.parent.name.lstrip('.')}"
+        shutil.copytree(d, keep, dirs_exist_ok=True)
+        try:
+            shutil.rmtree(d)
+            shutil.copytree(src, d)
+        except OSError as e:
+            shutil.rmtree(d, ignore_errors=True)
+            shutil.copytree(keep, d, dirs_exist_ok=True)
+            shutil.rmtree(ext, ignore_errors=True)
+            return job.done(False, f"换 Skill 没成（{type(e).__name__}，可能有文件正被打开），旧版已经放回去了。关掉 DeepSeek Harness 再点一次。")
+        replaced.append(d)
+
+    pack, newpack = DIR / "dafeiyu-config-pack", src / "pack" / "dafeiyu-config-pack"
+    if (newpack / "tools" / "import_dafeiyu.py").is_file():
+        job.set("换上新版配置包……", 65)
+        try:
+            if pack.is_dir():
+                shutil.move(str(pack), str(bk / "dafeiyu-config-pack"))
+            shutil.copytree(newpack, pack)
+        except OSError:
+            shutil.copytree(newpack, pack, dirs_exist_ok=True)  # 挪不走（有文件开着）就盖在上面
+
+    job.set("换上新版工作台……", 75)
+    code, out = powershell((replaced[0] if replaced else src) / "scripts" / "finish.ps1", "-Dir", DIR, timeout=180)
+    for ln in out.splitlines()[-8:]:
+        job.line(ln)
+    shutil.rmtree(ext, ignore_errors=True)
+    try:
+        zp.unlink()
+    except OSError:
+        pass
+    if skill_version() != new:
+        return job.done(False, "新版 Skill 换上了，工作台没换成：" + redact(out.strip()[-160:]) + " 交给 Agent 重跑一次收尾那步。")
+
+    msg = f"更新好了：{cur} → {new}。"
+    if not replaced:
+        msg += "没找到装着的 Skill（可能挪过），只换了工作台和配置包；Agent 那边要用新版，照资料文档重新装一次 Skill。"
+    re_ = "、".join(SKILL_BLOCKS.get(b, b) for b in nv.get("reimport") or [])
+    if re_:
+        msg += f"这一版还要重新导入{re_}：在 DeepSeek Harness 里说「用大肥鱼的安装 Skill，按新版说明重新导入{re_}」。"
+    msg += f"旧版备份在工作目录的「旧版」文件夹里。工作台马上自己重开一下。"
+    update_disk(updates={})  # 新的工作台起来重新查，别拿旧结果说「有新版」
+    drop_cache("versions")
+    job.done(True, msg, restart=True)
+    background(restart_self)
+
+
+def restart_self():
+    """换了新版工作台：等页面拿到结果，起一个新的接着用同一个端口和 token（窗口不用关），自己退出。"""
+    time.sleep(3)
+    env = dict(os.environ, DFY_WB_TOKEN=TOKEN)
+    subprocess.Popen([sys.executable, "-X", "utf8", str(HERE / "server.py"), "--dir", str(DIR), "--no-open", "--takeover", "--port", str(PORT)],
+                     cwd=tempfile.gettempdir(), env=env, creationflags=NO_WINDOW | 0x00000200, close_fds=True)
+    log("换了新版，重开")
+    SERVER.shutdown()
+
+
 LAST_FILES = set()
 
 
@@ -1908,6 +2085,7 @@ ACTIONS = {
     "diag": ("diag", "复制求助信息", lambda j, b: act_diag(j)),
     "backup": ("backup", "备份到桌面", lambda j, b: act_backup(j, bool(b.get("memes")))),
     "autostart_fix": ("autostart", "补开机自启", lambda j, b: act_autostart_fix(j)),
+    "skill_update": ("skillup", "更新安装 Skill", lambda j, b: act_skill_update(j)),
 }
 
 
@@ -1971,7 +2149,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(url.query)
         try:
             if path == "/api/ping":
-                return self.send(200, {"ok": True, "version": VERSION})
+                return self.send(200, {"ok": True, "version": VERSION, "pid": os.getpid()})  # pid：页面靠它看出工作台重开过
             if path == "/api/status":
                 LAST_SEEN = now()
                 return self.send(200, cached("status", 2, collect_status))
@@ -2122,6 +2300,7 @@ def main():
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--idle", type=int, default=180, help="多少秒没人看就退出")
     ap.add_argument("--no-clipboard", action="store_true", help="测试用：复制求助信息时不动剪贴板")
+    ap.add_argument("--takeover", action="store_true", help="工作台自己更新后重开用：等旧的退出、端口空出来，接着用同一个端口和 token")
     ap.add_argument("--game-off", action="store_true", help="开机自启用：打游戏模式没关就重启了，把语音、记忆开回来就退")
     OPTS = ap.parse_args()
     if OPTS.dir:
@@ -2142,12 +2321,19 @@ def main():
         return
 
     info = read_json(STATE / "server.json", {}) or {}
-    if info.get("port") and info.get("token") and alive(info):
+    if not OPTS.takeover and info.get("port") and info.get("token") and alive(info):
         if not OPTS.no_open:
             open_window(info["port"], info["token"])
         return
 
-    for p in ([OPTS.port] if OPTS.port else []) + [0]:
+    reuse = os.environ.pop("DFY_WB_TOKEN", "") if OPTS.takeover else ""
+    for _ in range(30 if OPTS.takeover else 0):
+        try:
+            SERVER = Server(("127.0.0.1", OPTS.port), Handler)
+            break
+        except OSError:
+            time.sleep(0.5)
+    for p in [] if SERVER else ([OPTS.port] if OPTS.port else []) + [0]:  # 接管成了就不用再找端口
         try:
             SERVER = Server(("127.0.0.1", p), Handler)
             break
@@ -2165,7 +2351,7 @@ def main():
         log("端口都占满了，起不来")
         return
     PORT = SERVER.server_address[1]
-    TOKEN = secrets.token_urlsafe(24)
+    TOKEN = reuse if reuse and PORT == OPTS.port else secrets.token_urlsafe(24)
     ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
     write_json(STATE / "server.json", {"port": PORT, "token": TOKEN, "pid": os.getpid(), "started": now(), "version": VERSION})
     log(f"起来了，端口 {PORT}，工作目录 {DIR}")
