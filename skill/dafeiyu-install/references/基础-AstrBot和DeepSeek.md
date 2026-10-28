@@ -82,6 +82,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\install-astrbot.ps1" -D
 （平台「大肥鱼」第 3 步已经建了；漏了的话 `connect-napcat.ps1` 会自己补。）
 
 - `whitelist`：白名单只放大号（`大肥鱼:FriendMessage:<大号>`），有 `group.txt` 再把里面的群都加上（一行一个，空格、逗号隔开也认）；大号设成管理员。要先有 `owner-qq.txt`，没有就先让他粘。
+- `group-reply [mention|quote|both|off]`：她在群里回谁时怎么标出来。`mention` 先 @ 那个人，`quote` 引用对方那句，`both` 都要，`off` 都不要；只管群聊，私聊不 @；她回的是语音时 QQ 带不了 @ 和引用。AstrBot 默认都不要，导入配置包也不动它。不带参数只看现在是哪种。工作台「群里插话」下面也能改。
 - 随时可以 `astr_setup.py --dir <工作目录> status` 看摘要。
 
 **成功**：`status` 显示默认模型、看图模型是 deepseek-flash，操作电脑 `none`，白名单开着，平台「大肥鱼」开着。

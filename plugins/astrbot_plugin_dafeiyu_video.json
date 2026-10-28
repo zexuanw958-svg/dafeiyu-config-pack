@@ -1,6 +1,6 @@
 {
   "name": "astrbot_plugin_dafeiyu_video",
-  "what": "看视频：截几张画面交给对话模型，再把视频里说的话转成文字（本机识别，或者硅基流动）",
+  "what": "看视频、听语音：视频截几张画面交给对话模型，视频里说的话和 QQ 语音转成文字（本机识别，或者硅基流动）",
   "opt_in": "video",
   "always_reinstall": true,
   "config": {

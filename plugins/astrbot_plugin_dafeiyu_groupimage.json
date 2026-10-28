@@ -1,0 +1,5 @@
+{
+  "name": "astrbot_plugin_dafeiyu_groupimage",
+  "what": "群里没 @ 她的图也先看一眼，之后 @ 她问图里是什么能答上",
+  "always_reinstall": true
+}

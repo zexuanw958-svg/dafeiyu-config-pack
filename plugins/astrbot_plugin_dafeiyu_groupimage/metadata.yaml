@@ -1,0 +1,8 @@
+name: astrbot_plugin_dafeiyu_groupimage
+display_name: 大肥鱼看群里的图
+desc: 群里没 @ 她的图先用看图模型看一眼，换成一句话，之后 @ 她问「刚才那张图写了啥」也答得上
+help: 装上就行；不想为群里的图花钱就在设置里关掉
+version: v0.1.0
+author: zexuan604
+support_platforms:
+  - aiocqhttp

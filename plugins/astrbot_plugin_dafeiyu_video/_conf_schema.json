@@ -45,5 +45,11 @@
     "description": "转写模型",
     "type": "string",
     "default": "FunAudioLLM/SenseVoiceSmall"
+  },
+  "listen_voice": {
+    "description": "听 QQ 语音",
+    "type": "bool",
+    "hint": "私聊、群里发来的语音先转成文字再给她看，用的是下面同一套语音识别；群里的语音没法 @ 她，转成文字后由群聊插件决定接不接",
+    "default": true
   }
 }

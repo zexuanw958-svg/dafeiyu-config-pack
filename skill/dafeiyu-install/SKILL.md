@@ -9,7 +9,7 @@ description: 在 Windows 10/11 上从零把一个 QQ 小号做成「大肥鱼」
 
 **这一版的原则**：会影响结果的事都问他，每个选项的好处和缺点都摆出来，再说「拿不准就选哪个、为什么」。说明的责任在你，决定权在他。他一开口就说了的（「装 D 盘」「我要 SnowLuma」），对应那一问跳过，复述时标「按你说的」。
 
-**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」）、`workbench\`（工作台本体：本机小服务加一个小窗口）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：只读体检，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
+**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、群里回复时 @ 不 @、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」）、`workbench\`（工作台本体：本机小服务加一个小窗口）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：只读体检，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
 
 ## 说话方式（对观众）
 
@@ -156,9 +156,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\probe.ps1"
 > **B. 你自己的角色**：你给我一段人设（名字、性格、怎么说话），表情包和声音可以跟着换。不花钱，多花十几分钟。
 > 拿不准就选 A，装好以后随时能换。
 >
-> **5. 看视频**（发图她都能看懂：私聊随便发，群里要 @ 她；每张图不到半分钱，从 DeepSeek 余额里扣）
+> **5. 看视频、听语音**（发图她都能看懂：私聊随便发，群里先发图再 @ 她问也行；每张图不到半分钱，从 DeepSeek 余额里扣）
 > **A. 先不开**。
-> **B. 开**：默认多下约 280 MB，她会从视频里截几张画面来看，视频里说的话也能听懂（普通话、粤语、英语都行）。一两分钟的视频大约一两分钱，听声音是你电脑算的、不花钱。
+> **B. 开**：默认多下约 280 MB，她会从视频里截几张画面来看，视频里说的话也能听懂（普通话、粤语、英语都行），你发的 QQ 语音也听得懂。群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句。一两分钟的视频大约一两分钱，听声音是你电脑算的、不花钱。
 > **C. 开，再加听方言、听歌词的增强版**：在 B 的基础上多下约 840 MB，难懂的方言和歌词认得更准；代价是慢，十几秒的视频要多等 10 秒左右，一分钟的多等半分钟左右。
 > 拿不准就选 A，想用了跟我说一声就加。
 
@@ -193,7 +193,7 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 | 2 | 装 AstrBot（命令行，不用启动器）：`install-astrbot.ps1 -Dir <工作目录>`。它建工作目录、生成后台密码、后台只听本机、启动 | `references/基础-AstrBot和DeepSeek.md`（已经用启动器装过的，看文末那节） |
 | 3 | 让他把 DeepSeek key 粘进 `private\deepseek-key.txt`（可以趁第 2 步装的时候就让他去弄），然后依次跑 `astr_setup.py --dir <工作目录> deepseek` 和 `bot`（`bot` 建机器人平台，漏了协议端会连不上；两个 connect 脚本发现没建会自己补） | 同上 |
 | 4 | 装协议端、登小号。选 A：`install-napcat.ps1 -Dir <工作目录>`，出二维码页面后停下叫人扫。选 B：先按 `协议端-SnowLuma.md` 讲协议、问同意，再 `install-snowluma.ps1 -Dir <工作目录>`（他同意了加 `-AcceptAgreements`），它会打开桌面 QQ，停下叫他登小号 | 选 A：`references/协议端-NapCat.md`；选 B：`references/协议端-SnowLuma.md` |
-| 5 | 让他把大号粘进 `private\owner-qq.txt`，`astr_setup.py ... whitelist`；然后选 A 的跑 `connect-napcat.ps1 -Dir <工作目录>`，选 B 的跑 `connect-snowluma.ps1 -Dir <工作目录>`，等登录完成、接上 AstrBot | 同上两份 + 基础那份第 5 节 |
+| 5 | 让他把大号粘进 `private\owner-qq.txt`；问他要不要让她进群，要的话先用大号把小号拉进群，再把群号（群资料里那串数字）粘进 `private\group.txt`，接着问「她在群里回谁，要不要先 @ 那个人？A. @（看得出她在回谁）B. 不 @」，照他选的跑 `astr_setup.py ... group-reply mention` 或 `off`（导入配置包不动这一项，以后在工作台改）。然后 `astr_setup.py ... whitelist`；然后选 A 的跑 `connect-napcat.ps1 -Dir <工作目录>`，选 B 的跑 `connect-snowluma.ps1 -Dir <工作目录>`，等登录完成、接上 AstrBot | 同上两份 + 基础那份第 5 节 |
 | 6 | 先过一遍「能聊」：他用大号私聊小号「在吗」，有回复再往下。**马上**用导入工具跑 `--only core`（几秒，只改本机设置）让她变成大肥鱼，再跑 `astr_setup.py greet` 让她**主动给大号发一句招呼**（换了自己角色的，你按角色写一句传进去）；叫他看手机，先回 `/reset`（清掉刚才默认助手的那几句），再随便聊一句，语气对了，主路就算完成 | 基础那份「第一次对话」、`references/导入配置包.md` 7.3 |
 | 7 | 加功能，**一项一项来**（见下面「加功能的规矩」）：导入工具 `--only plugins` → 选了看视频的 `install-ffmpeg.ps1`、`install-asr.ps1`（5C 加 `-Plus`）再 `--only video` → 本机记忆 `install-ollama.ps1` 再 `--only memory` → 语音（Breeze 先按那份装）再 `--only voice` → 表情包 `--only memes` 放后台跑、每半分钟转述一次进度 | `references/记忆.md`、`references/语音-豆包.md`、`references/语音-Breeze.md`、`references/角色包.md`、`references/看图看视频.md`、`references/导入配置包.md` |
 | 8 | `finish.ps1 -Dir <工作目录>`：开机自启、桌面掉线自救工具、桌面「大肥鱼工作台」；打开工作台给他看 | `references/收尾-自启和掉线.md` |
@@ -218,18 +218,19 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 依次让他做、你在后台日志里核对：
 
 1. 大号私聊小号「在吗」→ 她回话，语气是大肥鱼（或他的角色）的。之前聊过的先发 `/reset`。
-2. 选了群的：在群里 @ 她一句 → 她回。
+2. 选了群的：在群里 @ 她一句 → 她回，选了 @ 的开头会 @ 他（她回的是语音时不带 @，QQ 语音消息带不了）。
 3. 选了语音的：多聊几句，三条里大约有一条是语音（豆包要等 15–35 秒，Breeze 几秒）。
 4. 表情包：多聊几句会配图；群里也会配（配置包 `7121c0c` 以后的版本才行）。
 5. 选了记忆的：跟她说「记住，我家猫叫团子」，发 `/reset`，再问她「我家猫叫什么」。先跟他讲清楚记忆怎么存（别等他试失败了才说）：平时聊天攒满 10 轮（一问一答算一轮）她才总结一次存进长期记忆，没攒满就 `/reset` 再问，她多半不记得；想让她当场记住，就说「记住……」。10 轮是插件默认，想改在后台插件设置「总结触发轮次」里改（1–100）。
 6. 私聊发一张图，问「图里是什么」；选了看视频的，再发一段 10–30 秒的视频（`看图看视频.md`「验收」）。
 7. 掉线自救：选 A 的关掉 NapCat 窗口，双击桌面的「大肥鱼掉线-双击扫码」，能自己登回来（或弹码扫一下）；选 B 的双击桌面的「大肥鱼掉线-双击重登」（或在工作台点「重新登 QQ」）：它会把 SnowLuma 和桌面 QQ 重新打开，他在 QQ 窗口里点登录或扫码。
 
-全部通过，跟他说一句完事了，再提醒几件事：DeepSeek Harness 的权限记得切回「工作区可写」；电脑开着她才在线；小号偶尔被 QQ 踢下线是正常的，桌面工作台里点一下就能重新登；选了本机语音或记忆的，打游戏前在工作台点「打游戏模式」，打完点恢复（`references/记忆.md`「对电脑的影响、打游戏」）；后台密码在 `<工作目录>\private\backend.txt`，想改成自己记得住的，改完把新密码写回这个文件。没装上的项，再说一遍怎么补。
+全部通过，跟他说一句完事了，再提醒几件事：DeepSeek Harness 的权限记得切回「工作区可写」；电脑开着她才在线；小号偶尔被 QQ 踢下线是正常的，桌面工作台里点一下就能重新登；选了本机语音或记忆的，打游戏前在工作台点「打游戏模式」，打完点恢复（`references/记忆.md`「对电脑的影响、打游戏」）；后台密码在 `<工作目录>\private\backend.txt`，想改成自己记得住的，改完把新密码写回这个文件。没装上的项，再说一遍怎么补。选了群的再说一句：群里她主要回 @ 她的消息，偶尔自己插话；群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句；「回谁要不要 @ 那个人」以后在工作台「群里插话」下面改。
 
 ## 装完以后他回来找你
 
 - 「补装表情包、语音、记忆、看视频」：照「加功能的规矩」跑 `import-pack.ps1 -Only <那块>`（要下大文件的先跑对应的 install 脚本）。
+- 「让她进群」「再加个群」：先让他用大号把小号拉进群，群号粘进 `private\group.txt`（一行一个），跑 `astr_setup.py ... whitelist`；没问过的话问一句回谁要不要 @（`group-reply`），并告诉他群里发语音要发完再 @ 她。不进白名单的群，她看到 @ 也不回。
 - 「她不回话了」：先让他双击桌面的掉线自救，或者在工作台点修复；还不行再看日志。
 - 「备份一下」「换电脑了」「重装系统前」「不想要了」「卸干净」：读 `references/备份、换电脑和卸载.md`。卸载一定先列清单、他回「确认」才删。
 
@@ -238,7 +239,6 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 - 不打开 AstrBot 的「操作电脑」能力，不给她执行命令、读写文件的工具。
 - 不改系统代理、防火墙、网络设置（WorkBuddy 自己弹的防火墙框，点「取消」也不影响，10-25 实测）。
 - SnowLuma：他没亲口说「同意」之前不加 `-AcceptAgreements`；不改 SnowLuma 包里的任何文件；不把它打包转给别人（它的协议不许）。
-- 不帮他克隆别人的声音（游戏角色、配音演员、明星）。他自己的声音、或者用一句话捏出来的声音都行。
 - 不把群里插话概率调到 0.1 以上，插得多容易被风控。
 
 ## 怎么装这个 Skill

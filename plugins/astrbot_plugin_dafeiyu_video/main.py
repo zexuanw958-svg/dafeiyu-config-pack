@@ -6,6 +6,8 @@
   代价是追问细节她答不上（10-27 实测：追问「第一个画面有人吗」，她编了个「没人」），所以说明里让她记不清就直说。
   想让她记住画面就打开 keep_frames，之后每轮都带着这几张图（DeepSeek 前缀缓存命中按低价算，但还是多花钱）。
 - 私聊都看；群里默认被 @ 或叫醒才看（群聊插件 group_chat_plus 也是走 event.request_llm，这个钩子同样生效）。
+- QQ 语音（10-28 加）：私聊、群里发来的语音，用同一套识别转成「[语音：……]」一行字，排在群聊插件和对话模型前面，
+  她就当对方打了这句字。QQ 语音多半是 silk 格式，ffmpeg 不认，先用 AstrBot 自带的转换工具转成 wav。
 - 出任何错都只记日志，不影响她正常回话。
 """
 
@@ -16,7 +18,7 @@ import uuid
 
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.message_components import Reply, Video
+from astrbot.api.message_components import Plain, Record, Reply, Video
 from astrbot.api.star import Context, Star
 from astrbot.core.agent.message import ImageURLPart, TextPart
 from astrbot.core.config.astrbot_config import AstrBotConfig
@@ -60,6 +62,52 @@ class DafeiyuVideo(Star):
                     shutil.rmtree(d, ignore_errors=True)
             except OSError:
                 pass
+
+    # 群聊插件处理群消息的 handler 是 priority=-1，这里要排在它前面
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=100)
+    async def hear(self, event: AstrMessageEvent):
+        if not self.conf.get("listen_voice", True):
+            return
+        chain = event.message_obj.message
+        rec = next((c for c in chain if isinstance(c, Record)), None)
+        if not rec:
+            return
+        t0 = time.time()
+        try:
+            text, how = await self._hear(rec)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[dafeiyu_video] 这条语音没听成：{type(e).__name__}: {e}")
+            return
+        chain[chain.index(rec)] = Plain(f"[语音：{text}]" if text else "[发来一条语音，没听出说了什么]")
+        s = "".join(c.text for c in chain if isinstance(c, Plain)).strip()
+        event.message_obj.message_str = s
+        event.message_str = s
+        logger.info(f"[dafeiyu_video] 听了一条语音（{how}）：{len(text)} 字，用时 {time.time() - t0:.1f} 秒")
+
+    async def _hear(self, rec):
+        ffmpeg = V.find_ffmpeg((self.conf.get("ffmpeg_path") or "").strip())
+        asr = V.find_asr((self.conf.get("asr_dir") or "").strip(), ffmpeg)
+        key = (self.conf.get("asr_key") or "").strip()
+        if not ffmpeg or not (asr or key):
+            raise RuntimeError("没装 ffmpeg 或语音识别")
+        path = await rec.convert_to_file_path()
+        self._purge_old()
+        work = os.path.join(self.root, uuid.uuid4().hex[:12])
+        os.makedirs(work, exist_ok=True)
+        with open(path, "rb") as f:
+            head = f.read(12)
+        if b"#!SILK" in head:
+            from astrbot.core.utils.tencent_record_helper import tencent_silk_to_wav
+            path = await tencent_silk_to_wav(path, os.path.join(work, "voice.wav"))
+        if asr:
+            chunks = await V.grab_chunks(ffmpeg, path, 120, work)
+            if not chunks:
+                return "", "本机识别"
+            text, which = await V.transcribe_local(asr, chunks)
+            return text, f"本机识别（{which}）"
+        audio = await V.grab_audio(ffmpeg, path, 120, work)
+        model = self.conf.get("asr_model") or "FunAudioLLM/SenseVoiceSmall"
+        return (await V.transcribe(audio, key, model) if audio else ""), "硅基流动"
 
     @filter.on_llm_request()
     async def look(self, event: AstrMessageEvent, req):

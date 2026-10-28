@@ -70,7 +70,7 @@
         "generation.emotion.llm.enabled": false,
         "generation.trigger.scope": "chat_and_plugin_llm",
         "generation.prompt.quantity_guidance_enabled": true,
-        "generation.emotion.probability": 35,
+        "generation.emotion.probability": 60,
         "generation.emotion.max_memes_per_message": 1
       }
     },

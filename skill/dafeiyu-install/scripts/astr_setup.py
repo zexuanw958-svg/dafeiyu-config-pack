@@ -7,6 +7,7 @@
   deepseek                       核 key 余额，建 DeepSeek 提供商和 deepseek-flash 模型，设成默认和看图模型，关掉「操作电脑」
   bot [--ws-host 0.0.0.0]        建 aiocqhttp 平台「大肥鱼」（反向 WS 127.0.0.1:6199，token 用 private\\napcat-ws-token.txt；云端 Docker 里要 0.0.0.0，NapCat 容器才连得进来）
   whitelist                      白名单只放大号（private\\owner-qq.txt），有 group.txt 再加群；大号设成管理员
+  group-reply [mention|quote|both|off]  群里回复时 @ 对方 / 引用对方那句 / 两样都要 / 都不要；不写就只打印现在的
   status                         打印现在的设置摘要和五项功能现状（登 QQ 的程序、语音、记忆、角色、看视频，再加表情包；不含秘密）
   logs [N] [关键词]              看后台最近 N 条日志（QQ 号和秘密打码）
   meme-show                      列出装了哪几套表情包、默认规则用哪几套
@@ -230,6 +231,19 @@ elif A.cmd == "whitelist":
         admins.append(owner)
     put_cfg(cfg)
     print(f"白名单 {len(wl)} 条（大号{f'、{len(groups)} 个群' if groups else ''}），大号已设成管理员")
+
+elif A.cmd == "group-reply":
+    # AstrBot 自带的两个开关：@ 只在群里加（私聊不加），引用会带上她回的是哪一句
+    modes = {"mention": (True, False), "quote": (False, True), "both": (True, True), "off": (False, False)}
+    mode = (A.rest[0] if A.rest else "").lower()
+    if mode and mode not in modes:
+        sys.exit("group-reply 后面写 mention、quote、both 或 off")
+    cfg = get_cfg()
+    ps = cfg.setdefault("platform_settings", {})
+    if mode:
+        ps["reply_with_mention"], ps["reply_with_quote"] = modes[mode]
+        put_cfg(cfg)
+    print("群里回复时 @ 对方：", "开" if ps.get("reply_with_mention") else "关", "；引用对方那句：", "开" if ps.get("reply_with_quote") else "关")
 
 elif A.cmd == "status":
     cfg = get_cfg()

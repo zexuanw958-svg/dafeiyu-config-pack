@@ -673,7 +673,7 @@ LM_PLUGIN = "astrbot_plugin_livingmemory"
 
 
 def astr_call(tok, method, path, body=None, timeout=30):
-    """调 AstrBot 后台接口（只有打游戏模式用：临时关语音开关、停记忆插件）。出错就抛。"""
+    """调 AstrBot 后台接口（打游戏模式临时关语音开关、停记忆插件；群里回复时 @ 不 @；表情包发多少）。出错就抛。"""
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(f"http://127.0.0.1:{backend_port()}/api/v1{path}", data=data, method=method)
     req.add_header("Content-Type", "application/json")
@@ -718,6 +718,73 @@ def astr_plugin_on(tok, name):
         if isinstance(p, dict) and p.get("name") == name:
             return bool(p.get("activated", True))
     return None
+
+
+# 群里回复时：(@ 对方, 引用对方那句)。AstrBot 自带的两个开关，改了马上生效；@ 只在群里加，引用私聊也会带。
+# 她回的是语音时两样都不加（AstrBot 只给纯文字、图片的回复加）
+GROUP_REPLY = {"off": (False, False), "mention": (True, False), "quote": (False, True), "both": (True, True)}
+
+
+def group_reply_mode():
+    d = data_dir()
+    ps = ((read_json(d / "cmd_config.json", {}) or {}).get("platform_settings") or {}) if d else {}
+    cur = (bool(ps.get("reply_with_mention")), bool(ps.get("reply_with_quote")))
+    return next((k for k, v in GROUP_REPLY.items() if v == cur), "off")
+
+
+def act_group_reply(job, mode):
+    if mode not in GROUP_REPLY:
+        return job.done(False, "没有这个选项")
+    if not listening(backend_port()):
+        return job.done(False, "大脑没开，改不了。先把大脑开起来。")
+    tok = astr_login()
+    if not tok:
+        return job.done(False, "大脑后台没登上（多半是在网页上改过后台密码）。去后台「配置文件 → 平台配置」里改「回复时 @ 发送者」「回复时引用消息」。")
+    job.set("跟大脑说一声……", 40)
+    cfg = astr_call(tok, "GET", "/config-profiles/default")["config"]
+    ps = cfg.setdefault("platform_settings", {})
+    ps["reply_with_mention"], ps["reply_with_quote"] = GROUP_REPLY[mode]
+    astr_call(tok, "PUT", "/config-profiles/default", cfg)
+    drop_cache("status")
+    return job.done(True, {"off": "改好了：群里回话不 @ 人、也不引用。",
+                           "mention": "改好了：她在群里回谁就先 @ 谁（私聊不 @）。发语音那几条不带 @。",
+                           "quote": "改好了：她回话会引用对方那句，一眼看出在回哪条（私聊也会引用）。发语音那几条不带引用。",
+                           "both": "改好了：她在群里回谁就 @ 谁，还引用对方那句。发语音那几条不带。"}[mode])
+
+
+# 表情包发多少：她给回复挑中表情以后，按这个百分比真发图（meme_manager 的 generation.emotion.probability）。
+# 她本来就不是每句都挑（10-28 群里大约四成回复挑了），所以「多」就是挑中就发
+MEME_FREQ = {"few": 30, "mid": 60, "many": 100}
+
+
+def meme_freq():
+    d = data_dir()
+    conf = read_json(d / "config" / "meme_manager_config.json", {}) if d else {}
+    v = (((conf or {}).get("generation") or {}).get("emotion") or {}).get("probability")
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return ""
+    return min(MEME_FREQ, key=lambda k: abs(MEME_FREQ[k] - v))
+
+
+def act_meme_freq(job, level):
+    if level not in MEME_FREQ:
+        return job.done(False, "没有这个选项")
+    if not listening(backend_port()):
+        return job.done(False, "大脑没开，改不了。先把大脑开起来。")
+    tok = astr_login()
+    if not tok:
+        return job.done(False, "大脑后台没登上（多半是在网页上改过后台密码）。去后台「插件 → meme_manager → 配置」里改表情的发送概率。")
+    if astr_plugin_on(tok, "meme_manager") is None:
+        return job.done(False, "表情包插件还没装，先点上面的「补装」。")
+    job.set("跟大脑说一声……", 40)
+    conf = astr_call(tok, "GET", "/plugins/config?plugin_id=meme_manager") or {}
+    conf = conf.get("config", conf)
+    conf.setdefault("generation", {}).setdefault("emotion", {})["probability"] = MEME_FREQ[level]
+    astr_call(tok, "PUT", "/plugins/config", {"plugin_id": "meme_manager", "config": conf}, 60)
+    drop_cache("status")
+    return job.done(True, {"few": "改好了：表情包少发点，她挑中表情也只有三成会发。",
+                           "mid": "改好了：她挑中表情，六成会发图。",
+                           "many": "改好了：她挑中表情就发图。"}[level])
 
 
 def game_boot_hook(on):
@@ -1405,6 +1472,8 @@ def collect_status():
         "game": {"on": bool(gm), "since": (gm or {}).get("since", 0), "can": voice == "4" or mem == "1",
                  "left": not gm and bool((read_json(game_file(), {}) or {}).get("on"))},  # 开着打游戏模式重启了、开机没恢复成
         "paths": {"backend": str(DIR / "private" / "backend.txt"), "private": str(DIR / "private")},
+        "group_reply": group_reply_mode(),
+        "meme_freq": meme_freq(),
     }
 
 
@@ -2085,6 +2154,8 @@ ACTIONS = {
     "diag": ("diag", "复制求助信息", lambda j, b: act_diag(j)),
     "backup": ("backup", "备份到桌面", lambda j, b: act_backup(j, bool(b.get("memes")))),
     "autostart_fix": ("autostart", "补开机自启", lambda j, b: act_autostart_fix(j)),
+    "group_reply": ("grouprep", "群里回复时", lambda j, b: act_group_reply(j, str(b.get("mode", "")))),
+    "meme_freq": ("memefreq", "表情包发多少", lambda j, b: act_meme_freq(j, str(b.get("level", "")))),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: act_skill_update(j)),
 }
 

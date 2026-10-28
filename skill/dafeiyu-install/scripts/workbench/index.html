@@ -196,6 +196,10 @@ code,.mono{font:12.5px var(--mono);color:var(--ink);background:var(--panel2);pad
 .row .rbtn{display:flex;gap:6px;align-items:center}
 .row .rprog{grid-column:2 / 4}
 .row .res{font-size:12px;color:var(--ink3);margin-top:2px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;margin-top:6px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:2px}
+.seg button{height:26px;padding:0 10px;border-radius:8px;font-weight:600;font-size:12.3px;color:var(--ink2)}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--ink);color:var(--tabOnInk)}
 .row .res.bad{color:var(--bad)} .row .res.ok{color:var(--ok)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
 .chips a{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600;font-size:12.8px;cursor:pointer}
@@ -883,9 +887,11 @@ function renderFeatures(S){
   $('#feats').innerHTML=[
     row('i-mic','发语音',esc(by('voice').name.split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||''),ext('换模型、语音',base+'/#/providers'),v.btn,v.extra),
     row('i-book','记忆',esc(by('memory').text),S.answers.memory?ext('看她记住了什么',base+'/#/plugin-view/astrbot_plugin_livingmemory/dashboard'):'',m.btn,m.extra),
-    row('i-smile','表情包',esc(by('memes').text),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,e.extra),
-    row('i-video','看视频',esc(by('vision').text),S.answers.video?ext('截几张、看多长',base+'/#/extension?open_config=astrbot_plugin_dafeiyu_video'):'',vd.btn,vd.extra),
-    row('i-users','群里插话','插得越多越容易被风控（QQ 的安全检查），别调太高',ext('插不插、插多少',base+'/#/extension?open_config=astrbot_plugin_group_chat_plus'),''),
+    row('i-smile','表情包',esc(by('memes').text)+(S.meme_freq?'。下面选她发多少（她不是每句都挑表情，「多」就是挑中就发）':''),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,
+      e.extra+(S.meme_freq?`<div class="seg" role="group" aria-label="表情包发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.meme_freq===k?'on':''}" aria-pressed="${S.meme_freq===k}" data-run="meme_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
+    row('i-video','看视频、听语音',esc(by('vision').text),S.answers.video?ext('截几张、看多长',base+'/#/extension?open_config=astrbot_plugin_dafeiyu_video'):'',vd.btn,vd.extra),
+    row('i-users','群里插话','插得越多越容易被风控（QQ 的安全检查），别调太高。群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句。下面选她在群里回谁的时候怎么标出来',ext('插不插、插多少',base+'/#/extension?open_config=astrbot_plugin_group_chat_plus'),'',
+      `<div class="seg" role="group" aria-label="群里回复时">${[['off','不标'],['mention','@ 对方'],['quote','引用那句'],['both','都要']].map(([k,l])=>`<button class="${S.group_reply===k?'on':''}" aria-pressed="${S.group_reply===k}" data-run="group_reply" data-body='{"mode":"${k}"}'>${l}</button>`).join('')}</div>`),
     row('i-heartmsg','主动找你聊','隔一阵没聊，她会自己来找你',ext('多久一次',base+'/#/extension?open_config=astrbot_plugin_proactive_chat'),''),
     row('i-feather','发说说','用小号在 QQ 空间发动态',ext('设置、看发过的',base+'/#/plugin-view/astrbot_plugin_qzone/dashboard'),''),
     row('i-power','开机自启',esc(auto.text),'',auto.fix?`<button class="btn sm primary" data-run="autostart_fix">${ic('i-wrench')}${esc(auto.fix.label)}</button>`:`<span class="pill ok">${ic('i-check')}设好了</span>`),

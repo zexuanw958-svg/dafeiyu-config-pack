@@ -1,0 +1,4 @@
+{
+  "enable": {"description": "群里没 @ 她的图也先看一眼", "type": "bool", "default": true, "hint": "关掉的话，只有 @ 她的那条消息里的图她才看得见。每张图调一次看图模型（DeepSeek 不到半分钱）"},
+  "max_images": {"description": "一条消息最多看几张", "type": "int", "default": 3}
+}
