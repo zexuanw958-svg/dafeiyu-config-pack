@@ -10,17 +10,24 @@
 （/lmem summarize 背后那个函数，记忆白名单、群聊隔离、记忆范围都照它的规矩走），总结完才轮到它清空。
 没装或没开记忆插件、这个会话不在记忆白名单里、新攒下的不到两条消息的，什么都不做。
 总结要叫一次对话模型，一般几秒；这时 /reset 的回复已经发出去了，不耽误聊天。超时或出错就照原来那样清空。
+
+/reset、/new 的回复是 AstrBot 写死的英文（10-29 群友截图里「✅ The current conversation context has been cleared.」），
+发出去之前换成中文；开着记忆的顺便提醒一句等十来秒再问。
 """
 
 import asyncio
+import re
 
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.message_components import Plain
 from astrbot.api.star import Context, Star
 
 LM = "astrbot_plugin_livingmemory"
 RESET_FLAGS = ("_clean_group_context_session", "_clean_ltm_session")  # AstrBot 4.29 的 /reset、/new 设前一个；后一个是记忆插件也认的旧名字
 TIMEOUT = 90
+RESET_EN = "✅ The current conversation context has been cleared."
+NEW_EN = re.compile(r"✅ Switched to new conversation: (\w+)\.")
 
 
 def _text(result) -> str:
@@ -42,6 +49,24 @@ class DafeiyuResetKeep(Star):
         lm = getattr(meta, "star_cls", None)
         fn = getattr(getattr(lm, "command_handler", None), "handle_summarize", None)
         return lm, fn
+
+    @filter.on_decorating_result(priority=100)
+    async def reply_in_chinese(self, event: AstrMessageEvent):
+        if not any(event.get_extra(k, False) for k in RESET_FLAGS):
+            return
+        result = event.get_result()
+        for comp in (result.chain if result else None) or []:
+            if not isinstance(comp, Plain):
+                continue
+            t = comp.text.strip()
+            if t == RESET_EN:
+                comp.text = "✅ 聊天清空了"
+            elif m := NEW_EN.fullmatch(t):
+                comp.text = f"✅ 开了个新对话（{m.group(1)}）"
+            else:
+                continue
+            if self._summarize_fn()[1] is not None:
+                comp.text += "。长期记忆还在，刚才没存的几轮这就存进去，等十来秒再问她以前的事"
 
     @filter.after_message_sent(priority=100)
     async def keep_before_reset(self, event: AstrMessageEvent, *_args):

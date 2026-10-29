@@ -24,7 +24,7 @@ from astrbot.api.star import Context, Star
 from astrbot.core.agent.message import TextPart
 from astrbot.core.star.session_llm_manager import SessionServiceManager
 
-from .clean import clean, dirty
+from .clean import clean, dirty, fold_lone_punct, strip_markers
 from .voice import voice_note, voice_prompt
 
 VOICE_NOTE_TTL = 24 * 3600
@@ -146,14 +146,34 @@ class DafeiyuClean(Star):
         result = event.get_result()
         if not result or not result.chain:
             return
-        new_chain, hit = [], False
+        new_chain, hit, tagged = [], False, False
         for comp in result.chain:
-            if isinstance(comp, Plain) and dirty(comp.text):
-                hit = True
-                comp.text = clean(comp.text)
+            if isinstance(comp, Plain):
+                text = clean(comp.text) if dirty(comp.text) else comp.text
+                if text != comp.text:
+                    hit = True
+                text2 = strip_markers(text)
+                if text2 != text:
+                    tagged = True
+                    hit = True
+                comp.text = text2
                 if not comp.text:
                     continue
             new_chain.append(comp)
         if hit:
             result.chain = new_chain
-            logger.warning("[dafeiyu_clean] 回复里漏了内部标签（system_reminder / DSML），发出去前删掉了")
+        try:
+            voiced = await self._voice_rate(event) > 0
+        except Exception:  # noqa: BLE001
+            voiced = False
+        if voiced:
+            for comp in result.chain:
+                if isinstance(comp, Plain) and (t := fold_lone_punct(comp.text)) != comp.text:
+                    comp.text = t
+                    logger.info("[dafeiyu_clean] 单独一段的标点（「……」之类）接到上一句或缩成一个字，免得被念成语音")
+        if hit:
+            logger.warning(
+                "[dafeiyu_clean] 回复里漏了内部标签（system_reminder / DSML）"
+                + ("或表情包暗号" if tagged else "")
+                + "，发出去前删掉了"
+            )

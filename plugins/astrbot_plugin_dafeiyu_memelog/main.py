@@ -15,7 +15,11 @@
    补发成没成功，是给 meme_manager 的补发函数套一层记数拿到的；它哪天改了函数名，套不上，就按「会发出去」算。
 没走到发送这一步（出错、被打断）的，标记一直是删掉的状态。
 流式输出时 meme_manager 在它自己的钩子里直接发图，这里看不到，按它掷骰子的结果估：中了就留第一个分类。
+
+对方点名要表情包（「给我发个表情包」）时不掷骰子，她选了图就一定发（10-29 实测：她回「拿去」，图被概率刷掉了）。
 """
+
+import re
 
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, ResultContentType, filter
@@ -27,6 +31,8 @@ from .settle import settle, tags
 KEY = "_dafeiyu_memelog"
 SENT_OK = "_dafeiyu_memelog_sent_ok"
 SEND_FN = "_send_meme_image"  # meme_manager 5.2.9 补发表情包用的函数
+ASK = re.compile(r"表情包|斗图|(发|来|整)(个|张|点)?表情")
+ASK_NOT = re.compile(r"(别|不要|少|不用)(再)?(发|来)?(个|张|点)?表情")
 
 
 def _last_assistant(run_context):
@@ -84,6 +90,15 @@ class DafeiyuMemeLog(Star):
         counted._dafeiyu_memelog = True
         setattr(inst, SEND_FN, counted)
         return True
+
+    @filter.on_llm_response(priority=99998)  # meme_manager 认标记、掷骰子在 99999，这里接在它后面
+    async def asked_for_meme(self, event: AstrMessageEvent, resp):
+        text = event.message_str or ""
+        if not event.get_extra("found_emotions") or not ASK.search(text) or ASK_NOT.search(text):
+            return
+        if not event.get_extra("meme_manager_legacy_probability_hit"):
+            event.set_extra("meme_manager_legacy_probability_hit", True)
+            logger.info("[dafeiyu_memelog] 对方点名要表情包，这张不掷骰子，直接发")
 
     @filter.on_agent_done(priority=-100)
     async def hold_tags(self, event: AstrMessageEvent, run_context, llm_response):

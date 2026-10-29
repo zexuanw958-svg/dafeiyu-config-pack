@@ -5,6 +5,7 @@
 - 截的画面默认只给这一轮用（mark_as_temp），不进聊天记录，后面每轮不会重复按图收钱；文字说明会留在记录里。
   代价是追问细节她答不上（10-27 实测：追问「第一个画面有人吗」，她编了个「没人」），所以说明里让她记不清就直说。
   想让她记住画面就打开 keep_frames，之后每轮都带着这几张图（DeepSeek 前缀缓存命中按低价算，但还是多花钱）。
+- 电脑 QQ 发的视频常常是「文件」（扩展名 mp4、mov 这些），也当视频看（10-29 加）。
 - 私聊都看；群里默认被 @ 或叫醒才看（群聊插件 group_chat_plus 也是走 event.request_llm，这个钩子同样生效）。
 - QQ 语音（10-28 加）：私聊、群里发来的语音，用同一套识别转成「[语音：……]」一行字，排在群聊插件和对话模型前面，
   她就当对方打了这句字。QQ 语音多半是 silk 格式，ffmpeg 不认，先用 AstrBot 自带的转换工具转成 wav。
@@ -18,7 +19,7 @@ import uuid
 
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.message_components import Plain, Record, Reply, Video
+from astrbot.api.message_components import File, Plain, Record, Reply, Video
 from astrbot.api.star import Context, Star
 from astrbot.core.agent.message import ImageURLPart, TextPart
 from astrbot.core.config.astrbot_config import AstrBotConfig
@@ -27,21 +28,33 @@ from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
 from . import video as V
 
 
+# 电脑 QQ 拖进去、粘贴进去的视频是按「文件」发的（10-29 Mac QQ 实测，「图片」按钮也不收 mp4），扩展名是这些的文件也当视频看
+VIDEO_EXTS = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".flv", ".m4v", ".3gp", ".wmv", ".ts")
+
+
+def _is_video(comp) -> bool:
+    if isinstance(comp, Video):
+        return True
+    return isinstance(comp, File) and (comp.name or "").lower().endswith(VIDEO_EXTS)
+
+
 def _first_video(event: AstrMessageEvent):
     for comp in event.message_obj.message:
-        if isinstance(comp, Video):
+        if _is_video(comp):
             return comp
     for comp in event.message_obj.message:
         if isinstance(comp, Reply) and comp.chain:
             for c in comp.chain:
-                if isinstance(c, Video):
+                if _is_video(c):
                     return c
     return None
 
 
-def _is_astrbot_marker(part) -> bool:
+def _is_astrbot_marker(part, name: str = "") -> bool:
     text = part.get("text") if isinstance(part, dict) else getattr(part, "text", None)
-    return isinstance(text, str) and text.startswith("[Video Attachment")
+    if not isinstance(text, str):
+        return False
+    return text.startswith("[Video Attachment") or bool(name) and text.startswith(f"[File Attachment: name {name},")
 
 
 class DafeiyuVideo(Star):
@@ -132,7 +145,7 @@ class DafeiyuVideo(Star):
             return
 
         t0 = time.time()
-        path = await video.convert_to_file_path()
+        path = await video.get_file() if isinstance(video, File) else await video.convert_to_file_path()
         max_seconds = int(self.conf.get("max_seconds", 180) or 180)
         max_frames = max(1, int(self.conf.get("max_frames", 6) or 6))
         duration, has_audio = await V.probe(ffmpeg, path)
@@ -180,7 +193,8 @@ class DafeiyuVideo(Star):
                 f"（分别在 {stamps}）。{sound}回的时候就当你刚看完这段视频，别提截图、抽帧、转写这些词。"
                 f"{'' if keep else '这些画面只给你看这一次，之后被问到你这次没说到的细节，就说当时没看清，别编。'}]")
 
-        req.extra_user_content_parts = [p for p in req.extra_user_content_parts if not _is_astrbot_marker(p)]
+        fname = video.name if isinstance(video, File) else ""
+        req.extra_user_content_parts = [p for p in req.extra_user_content_parts if not _is_astrbot_marker(p, fname)]
         req.extra_user_content_parts.append(TextPart(text=text))
         for _, f in frames:
             part = ImageURLPart(image_url=ImageURLPart.ImageURL(url=f))
