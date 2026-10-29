@@ -9,6 +9,13 @@ $tok = (Get-Content -Raw "$Dir\private\napcat-ws-token.txt").Trim()
 
 function Read-SlLog { try { $fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite'); $sr = New-Object IO.StreamReader($fs, [Text.Encoding]::UTF8); $t = $sr.ReadToEnd(); $sr.Close(); return $t } catch { return '' } }
 function SlRunning { [bool](Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($sl, [StringComparison]::OrdinalIgnoreCase) }) }
+# QQ 比 SnowLuma 先开、日志里又没有 login detected：小号多半是 SnowLuma 开起来之前就登上了，它看不到这次登录（10-29 Z1，DSH 查了约 4 分钟）
+function LoggedInBeforeSl {
+    $qq = Get-Process QQ -ErrorAction SilentlyContinue | Where-Object StartTime | Sort-Object StartTime | Select-Object -First 1
+    $node = Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($sl, [StringComparison]::OrdinalIgnoreCase) } | Sort-Object CreationDate | Select-Object -First 1
+    return [bool]($qq -and $node -and $qq.StartTime -lt $node.CreationDate -and (Read-SlLog) -notmatch 'login detected')
+}
+$beforeHint = '如果小号已经在 QQ 里登上了：SnowLuma 是后开的，看不到这次登录，认不出号。请观众在 QQ 里退出登录（或者右下角托盘图标右键退出 QQ 再打开），重新登一次小号'
 
 # AstrBot 要开着、在听 6199（跟 NapCat 那条一样）
 $port = Get-BackendPort $Dir
@@ -25,14 +32,19 @@ Say "等小号在桌面 QQ 里登录（最多 $WaitSeconds 秒）。QQ 窗口里
 # 认小号：排除大号（private\owner-qq.txt）；以前认出过的（private\bot-qq.txt）优先
 $owner = if (Test-Path "$Dir\private\owner-qq.txt") { (Get-Content -Raw "$Dir\private\owner-qq.txt").Trim() } else { '' }
 $known = if (Test-Path "$Dir\private\bot-qq.txt") { (Get-Content -Raw "$Dir\private\bot-qq.txt").Trim() } else { '' }
-$t0 = Get-Date; $f = $null
+$t0 = Get-Date; $f = $null; $hinted = $false
 while (((Get-Date) - $t0).TotalSeconds -lt $WaitSeconds) {
     $c = @(Get-ChildItem $cfg -Filter 'onebot_*.json' -ErrorAction SilentlyContinue | Where-Object { $_.BaseName -match '^onebot_\d{5,}$' -and $_.BaseName -ne "onebot_$owner" })
     if ($known) { $f = $c | Where-Object BaseName -eq "onebot_$known" | Select-Object -First 1 }
     elseif ($c.Count -eq 1) { $f = $c[0] }
     elseif ($c.Count -gt 1) { Say '这台电脑的桌面 QQ 上登着不止一个号（除了大号还有别的），分不清哪个是小号：请观众把小号的 QQ 号粘进 private\bot-qq.txt 再重跑'; exit 6 }
     if ($f) { break }
+    if (-not $hinted -and ((Get-Date) - $t0).TotalSeconds -gt 30 -and (LoggedInBeforeSl)) { Say "QQ 比 SnowLuma 先开着。$beforeHint；还没登的接着登就行"; $hinted = $true }
     Start-Sleep 3
+}
+if (-not $f -and (LoggedInBeforeSl)) {
+    Say "等了 $WaitSeconds 秒，SnowLuma 没看到登录（日志里没有 login detected），QQ 又是在它之前开的。$beforeHint，再重跑本脚本"
+    exit 7
 }
 if (-not $f) {
     $t = Read-SlLog

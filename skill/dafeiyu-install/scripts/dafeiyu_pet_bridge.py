@@ -36,7 +36,7 @@ import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 MODEL_ID = "dafeiyu"
 DEFAULT_PORT = 26199          # 6199 是 QQ 连 AstrBot 的反向 WS，别撞；工作台是 26185
 WHISPER_PREFIX = "随便说一句日常碎碎念"  # dsh-pet 碎碎念的固定开头（src/host/whisper.ts）
@@ -149,6 +149,17 @@ def astrbot_stream(cfg, text, session):
     with urllib.request.urlopen(req, timeout=cfg.timeout) as r:
         for raw in r:
             line = raw.decode("utf-8", "replace").strip()
+            if line.startswith("{"):
+                # 出错时 AstrBot 回的是一整个 JSON（状态码照样 200），不是一行行 data:。
+                # 10-29 实测：会话名 desk-pet 先被别的 username 占了，回「session_id belongs to another username」，
+                # 以前这里当成「她没说话」，日志看不出原因
+                try:
+                    err = json.loads(line)
+                except ValueError:
+                    err = None
+                if isinstance(err, dict) and err.get("status") == "error":
+                    raise RuntimeError(str(err.get("message") or "AstrBot 报错")[:200])
+                continue
             if not line.startswith("data:"):
                 continue
             try:
@@ -285,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 reply = tidy("".join(astrbot_stream(self.cfg, text, session)))
             except Exception as e:  # noqa: BLE001  连不上、超时、AstrBot 报错
-                self.log(f"{kind} 失败（{type(e).__name__}），交给 dsh-pet 回落")
+                self.log(f"{kind} 失败（{type(e).__name__}：{str(e)[:120]}），交给 dsh-pet 回落")
                 return self._error(502, f"大肥鱼没回话：{type(e).__name__}")
             if not reply:
                 self.log(f"{kind} 她这次没说话（{time.time() - t0:.1f}s）")
@@ -304,7 +315,7 @@ class Handler(BaseHTTPRequestHandler):
                     pieces.append(piece)
                     break
         except Exception as e:  # noqa: BLE001
-            self.log(f"{kind} 失败（{type(e).__name__}），交给 dsh-pet 回落")
+            self.log(f"{kind} 失败（{type(e).__name__}：{str(e)[:120]}），交给 dsh-pet 回落")
             return self._error(502, f"大肥鱼没回话：{type(e).__name__}")
         if not pieces:
             self.log(f"{kind} 她这次没说话（{time.time() - t0:.1f}s）")

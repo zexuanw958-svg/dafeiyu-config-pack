@@ -22,8 +22,15 @@ $lnk = Join-Path ([Environment]::GetFolderPath('Startup')) '大肥鱼-桌宠桥.
 if (-not $DshHome) { $DshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { "$env:USERPROFILE\.dsh" } }
 $py = Find-AstrPython $Dir
 if (-not $py) { Say 'RESULT pet=fail reason=no-python next=找不到 AstrBot 自带的 Python：先确认第 2 步装好了'; exit 1 }
-# 脚本从 Skill 跑，也可能从 tools\ 跑（工作台、卸载）：缺的文件两边找
-function Find-Script([string]$Name) { foreach ($d in $PSScriptRoot, $tools) { if (Test-Path "$d\$Name") { return "$d\$Name" } }; return '' }
+# 脚本从 Skill 跑，也可能从 tools\ 跑（工作台、卸载）：缺的文件两边找。tools\ 里没有 astr_setup.py，
+# 再去 tools\skill-home.txt 记的 Skill 目录找（10-29：从 tools\ 跑 -Remove 找不到它，后台那把 key 只能让他手删）
+function Find-Script([string]$Name) {
+    $dirs = @($PSScriptRoot, $tools)
+    $home_ = if (Test-Path "$tools\skill-home.txt") { (Get-Content "$tools\skill-home.txt" -Raw -Encoding UTF8).Trim() } else { '' }
+    if ($home_) { $dirs += "$home_\scripts" }
+    foreach ($d in $dirs) { if (Test-Path "$d\$Name") { return "$d\$Name" } }
+    return ''
+}
 
 # DSH 网页服务开在哪几个端口（桌面版每次随机）：找得到 pet_config.py 就顺手让桌宠重载、核对模型清单；找不到也不影响写设置
 function Get-DshPorts {

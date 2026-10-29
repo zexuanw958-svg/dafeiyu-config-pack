@@ -21,6 +21,18 @@ if ($proto -eq 'snowluma') {
     function Mine($p) { (Invoke-CimMethod -InputObject $p -MethodName GetOwner -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Domain)\$($_.User)" }) -eq $me }
     function SlRunning { [bool](Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($sl, [StringComparison]::OrdinalIgnoreCase) }) }
     function MyQQ { @(Get-CimInstance Win32_Process -Filter "Name='QQ.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath -notmatch '\\NapCat' -and (Mine $_) }) }
+    function Show-QQ {
+        # 把 QQ 窗口调到最前面（10-29：退出账号后双击重登，登录窗口压在别的窗口底下，要从任务栏点出来）
+        try {
+            if (-not ('Dfy.Win' -as [type])) { Add-Type -Namespace Dfy -Name Win -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);' }
+            $w = Get-Process -Id @((MyQQ).ProcessId) -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+            if (-not $w) { return }
+            if ([Dfy.Win]::IsIconic($w.MainWindowHandle)) { [Dfy.Win]::ShowWindow($w.MainWindowHandle, 9) | Out-Null }
+            # Windows 不让后台程序抢前台，先按一下 Alt 再切（不按的话只会在任务栏闪一下）
+            [Dfy.Win]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [Dfy.Win]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+            [Dfy.Win]::SetForegroundWindow($w.MainWindowHandle) | Out-Null
+        } catch {}
+    }
     function Restart-SnowLuma {
         # 只结束 SnowLuma 文件夹里的程序，QQ 不动
         Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($sl, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
@@ -44,6 +56,7 @@ if ($proto -eq 'snowluma') {
     for ($i = 0; $i -lt 30 -and -not (Online); $i++) { Start-Sleep 1 }
     if (Online) { Write-Host '已经自动登上了，可以关掉这个窗口了。' -ForegroundColor Green; exit 0 }
     Write-Host '请在桌面 QQ 的窗口里登小号：有小号头像就点「登录」；是二维码就用登着小号的手机 QQ 扫一扫，再在手机上点「登录」。' -ForegroundColor Yellow
+    Show-QQ
     Write-Host '（最多等 10 分钟）'
     $deadline = (Get-Date).AddMinutes(10); $kicked = $false; $t0 = Get-Date
     while ((Get-Date) -lt $deadline) {

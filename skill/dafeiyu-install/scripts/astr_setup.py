@@ -221,6 +221,37 @@ def chat_once(key, owner, session, message, timeout=120):
     return "\n".join(x for x in out if x.strip())
 
 
+def free_pet_sessions(owner, key):
+    """桌宠的会话名在 AstrBot 里全局唯一，谁先用就归谁。被别的 username 先用了（10-29：Agent 自测时拿后台账号
+    在 desk-pet 里说过话），桥再以主人身份说话就回「session_id belongs to another username」，桌宠只能回落到
+    dsh-pet 自己的模型：口气对，记忆不通。占位的会话在这里删掉（会话和聊天记录一起删，长期记忆不动）。"""
+    db = os.path.join(DIR, "astrbot", "data", "data_v4.db")
+    if not os.path.exists(db):
+        return
+    import sqlite3
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        rows = con.execute("SELECT session_id, creator FROM platform_sessions WHERE session_id IN (?, ?)",
+                           (PET_SESSION, PET_SESSION + "-whisper")).fetchall()
+        con.close()
+    except sqlite3.Error as e:
+        print(f"（没查成桌宠的会话归谁：{e}）")
+        return
+    for sid, creator in rows:
+        creator = str(creator or "")
+        if creator == owner:
+            continue
+        if creator == B["username"]:
+            r = call("DELETE", f"/chat/sessions/{sid}", None, T)
+        else:
+            code, text = key_call(key, "DELETE", f"/chat/sessions/{sid}?username={urllib.request.quote(creator)}")
+            # 出错时开放接口照样回 200，正文里是 "status": "error"（10-29 实测用 key 删主人名下的会话回 Permission denied）
+            failed = code != 200 or '"error"' in text
+            r = {"_http": code or 500, "status": "error" if failed else "ok", "message": text[:150]}
+        print(f"桌宠的会话 {sid} 先被「{mask(creator)}」用掉了（自测时拿别的身份在里面说过话），"
+              + ("删掉了，桌宠能接上她了" if ok(r) else f"没删成：{mask(str(r.get('message') or r))[:150]}；让他到后台「对话」里把 {sid} 删了，再跑一次 setup-pet"))
+
+
 def pet_keys():
     r = call("GET", "/api-keys", None, T)
     if not ok(r):
@@ -562,6 +593,7 @@ elif A.cmd == "pet-key":
             f.write(key)
         print("桌宠的 key 建好了（范围 chat + chat:admin），存在 private\\pet-key.txt" + ("，旧的那把删了" if mine else "")
               + ("；试了一下能用" if key_works(key, owner) else "；但试用没通过，看后台日志"))
+    free_pet_sessions(owner, read("pet-key.txt"))
     if not os.path.exists(tf) or not read("pet-bridge-token.txt", required=False):
         import secrets as _secrets
         with open(tf, "w", encoding="utf-8") as f:
