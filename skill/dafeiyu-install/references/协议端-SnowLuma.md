@@ -64,6 +64,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\connect-snowluma.ps1" -
 **成功**：「SnowLuma 已经连上 AstrBot」；AstrBot 日志有「aiocqhttp(OneBot v11) 适配器已连接」。然后回 SKILL.md 第 6 步。
 
 **失败先查**：
+- 脚本退出码 7（「QQ 又是在它之前开的」）：小号在 SnowLuma 开起来之前就登上了，SnowLuma 看不到这次登录。让他在 QQ 里退出登录（或托盘右键退出 QQ 再打开），重新登一次小号，再跑一遍脚本（10-29 Z1 实测：DSH 自己排查了约 4 分钟才发现是这个）。
 - 等不到号：日志里没有 `login detected`。QQ 窗口里真登上了没有；QQ 和 SnowLuma 是不是一个用管理员身份开、一个没有（要一样，脚本起的两个都是普通权限，他自己右键「以管理员身份运行」过 QQ 的会对不上）；QQ 是不是刚自动升级（见下面）。
 - 登着不止一个号、又没有 `owner-qq.txt`：脚本会停下，让他把小号的号码粘进 `private\bot-qq.txt` 再跑。
 - 6199 连不上：AstrBot 开着没、平台「大肥鱼」建了没（`astr_setup.py bot`）、两边 token 一致没。
