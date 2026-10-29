@@ -946,7 +946,8 @@ function renderFeatures(S){
   const v=fb('voice','voice'), m=fb('memory','memory'), e=fb('memes','memes'), vd=fb('video','vision');
   const auto=by('autostart');
   setHTML($('#feats'),[
-    row('发语音',esc(String(by('voice').name||'').split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||''),ext('换模型、语音',base+'/#/providers'),v.btn,v.extra),
+    row('发语音',esc(String(by('voice').name||'').split(' · ')[1]||'没开')+' · '+esc(STATE_TX[by('voice').state]||'')+(S.voice_freq?'。下面选她发多少：少是七条里一条，中是三条里一条，多是三条里两条':''),ext('换模型、语音',base+'/#/providers'),v.btn,
+      v.extra+(S.voice_freq?`<div class="seg" role="group" aria-label="语音发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.voice_freq===k?'on':''}" aria-pressed="${S.voice_freq===k}" data-run="voice_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
     row('记忆',esc(by('memory').text),S.answers.memory?ext('看她记住了什么',base+'/#/plugin-view/astrbot_plugin_livingmemory/dashboard'):'',m.btn,m.extra),
     row('表情包',esc(by('memes').text)+(S.meme_freq?'。下面选她发多少（她不是每句都挑表情，「多」就是挑中就发）':''),ext('看看、上传新的',base+'/#/plugin-view/meme_manager/app'),e.btn,
       e.extra+(S.cloud&&e.btn.includes('data-run="import"')?'<div class="res">补装在服务器上跑，用的是服务器的网，不占这台电脑。</div>':'')+(S.meme_freq?`<div class="seg" role="group" aria-label="表情包发多少">${[['few','少'],['mid','中'],['many','多']].map(([k,l])=>`<button class="${S.meme_freq===k?'on':''}" aria-pressed="${S.meme_freq===k}" data-run="meme_freq" data-body='{"level":"${k}"}'>${l}</button>`).join('')}</div>`:'')),
@@ -1008,6 +1009,7 @@ $('#upNow').addEventListener('click',async e=>{ const b=e.currentTarget; b.disab
 const ASKS=[
   ['i-persona','换成我自己的角色','用大肥鱼的安装 Skill，帮我把大肥鱼换成我自己的角色：名字叫{名字}，性格是{性格}，说话像{谁}。'],
   ['i-wave','换个声音','用大肥鱼的安装 Skill，帮我给大肥鱼换个{=更温柔}的声音，先出三个让我听了再挑。'],
+  ['i-wave','听懂更多方言','用大肥鱼的安装 Skill，帮我给大肥鱼装上语音识别的增强版，湖南话这类方言、歌词能认得更准：先告诉我要多下多大、会慢多少，我同意了再装。'],
   ['i-users','让她进我的 QQ 群','用大肥鱼的安装 Skill，让大肥鱼也在我的 QQ 群里聊，群号是{群号}。'],
   ['i-help','她不回话了','大肥鱼不回话了。用大肥鱼的安装 Skill 帮我查查是哪出了问题，先只看不改，查完告诉我打算怎么修。（工作台的「复制求助信息」存在桌面上的 txt 我一起发给你）'],
   ['i-power','电脑关机她也在线','用大肥鱼的安装 Skill，帮我看看把大肥鱼搬到云服务器上要花多少钱、怎么弄，先别买，讲清楚利弊给我挑。'],

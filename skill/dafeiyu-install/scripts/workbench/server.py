@@ -51,7 +51,7 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # 便携版 Python（python312._pth）不把脚本所在的文件夹放进 sys.path
     sys.path.insert(0, str(HERE))
@@ -821,6 +821,60 @@ def act_meme_freq(job, level):
     astr_call(tok, "PUT", "/plugins/config", {"plugin_id": "meme_manager", "config": conf}, 60)
     drop_cache("status")
     return job.done(True, MEME_FREQ_MSG[level])
+
+
+# 语音发多少：她的回复里大约几成念成语音。AstrBot 的 provider_tts_settings.trigger_probability，改了当场生效（10-29 测过）；
+# 豆包是整条合成，由豆包插件按它提供商里的 seed_audio_reply_probability 掷骰子，两处一起改
+VOICE_FREQ = {"few": 0.15, "mid": 0.33, "many": 0.66}
+VOICE_FREQ_MSG = {"few": "改好了：语音少发点，大约七条里一条是语音。", "mid": "改好了：大约三条里一条是语音。",
+                  "many": "改好了：语音多发点，大约三条里两条是语音。"}
+
+
+def voice_provider(cfg):
+    """语音用的提供商配置；没接语音返回 None。"""
+    pid = str((cfg.get("provider_tts_settings") or {}).get("provider_id") or "")
+    return next((x for x in cfg.get("provider") or [] if isinstance(x, dict) and pid and str(x.get("id")) == pid), None)
+
+
+def voice_whole(p):
+    return bool(p) and p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))
+
+
+def voice_freq():
+    d = data_dir()
+    cfg = (read_json(d / "cmd_config.json", {}) or {}) if d else {}
+    p = voice_provider(cfg)
+    if not p:
+        return ""
+    v = p.get("seed_audio_reply_probability", 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return ""
+    return min(VOICE_FREQ, key=lambda k: abs(VOICE_FREQ[k] - v))
+
+
+def act_voice_freq(job, level):
+    if level not in VOICE_FREQ:
+        return job.done(False, "没有这个选项")
+    if not listening(backend_port()):
+        return job.done(False, "大脑没开，改不了。先把大脑开起来。")
+    tok = astr_login()
+    if not tok:
+        return job.done(False, "大脑后台没登上（多半是在网页上改过后台密码）。去后台「配置文件 → 语音」里改「触发概率」。")
+    job.set("跟大脑说一声……", 40)
+    cfg = astr_call(tok, "GET", "/config-profiles/default")["config"]
+    p = voice_provider(cfg)
+    if not p:
+        return job.done(False, "她还没接语音。想要的话去「交给 Agent」。")
+    cfg.setdefault("provider_tts_settings", {})["trigger_probability"] = VOICE_FREQ[level]
+    astr_call(tok, "PUT", "/config-profiles/default", cfg)
+    if voice_whole(p):
+        pid = urllib.parse.quote(str(p["id"]), safe="")
+        r = astr_call(tok, "GET", f"/providers/{pid}") or {}
+        cur = r.get("provider", r) if isinstance(r, dict) else {}
+        if isinstance(cur, dict) and cur.get("id") == p["id"]:
+            astr_call(tok, "PUT", f"/providers/{pid}", {"config": {**cur, "seed_audio_reply_probability": VOICE_FREQ[level]}}, 60)
+    drop_cache("status")
+    return job.done(True, VOICE_FREQ_MSG[level])
 
 
 def game_boot_hook(on):
@@ -1668,6 +1722,7 @@ def collect_status():
         "paths": {"backend": str(DIR / "private" / "backend.txt"), "private": str(DIR / "private")},
         "group_reply": group_reply_mode(),
         "meme_freq": meme_freq(),
+        "voice_freq": voice_freq() if voice in ("1", "2", "3", "4") else "",
     }
 
 
@@ -2414,6 +2469,7 @@ ACTIONS = {
     "restart_petbridge": ("pet", "重开大肥鱼桥", lambda j, b: act_restart_petbridge(j)),
     "group_reply": ("grouprep", "群里回复时", lambda j, b: act_group_reply(j, str(b.get("mode", "")))),
     "meme_freq": ("memefreq", "表情包发多少", lambda j, b: act_meme_freq(j, str(b.get("level", "")))),
+    "voice_freq": ("voicefreq", "语音发多少", lambda j, b: act_voice_freq(j, str(b.get("level", "")))),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: act_skill_update(j)),
 }
 

@@ -375,7 +375,7 @@ def base_status(items, d, connecting=False, err=None):
         "versions": versions, "answers": {"memory": a.get("memory", ""), "voice": a.get("voice", ""), "video": "1" if a.get("video") == "1" else ""},
         "game": {"on": False, "since": 0, "can": False, "left": False},
         "paths": {"backend": str(S.DIR / "private" / "cloud-backend.txt"), "private": str(S.DIR / "private")},
-        "group_reply": d.get("group_reply", "off"), "meme_freq": d.get("meme_freq", ""),
+        "group_reply": d.get("group_reply", "off"), "meme_freq": d.get("meme_freq", ""), "voice_freq": d.get("voice_freq", ""),
         "cloud": {"where": w, "dir": c["dir"], "console": console_url(), "expire": c["expire"], "connecting": connecting,
                   "err": err.code if err else "", "quick": bool(((cc.get("napcat") or {}).get("account"))), "at": SNAP["pc_at"]},
     }
@@ -820,7 +820,8 @@ def act_import(job, block):
 
 
 def act_setting(job, kind, val):
-    table = S.GROUP_REPLY if kind == "group_reply" else S.MEME_FREQ
+    table, msgs = {"group_reply": (S.GROUP_REPLY, S.GROUP_REPLY_MSG), "meme_freq": (S.MEME_FREQ, S.MEME_FREQ_MSG),
+                   "voice_freq": (S.VOICE_FREQ, S.VOICE_FREQ_MSG)}[kind]
     if val not in table:
         return job.done(False, "没有这个选项")
     d = need_ok(job)
@@ -839,9 +840,11 @@ def act_setting(job, kind, val):
             return job.done(False, "大脑后台没登上（多半是在网页上改过后台密码）。去后台里手动改。")
         if why == "noplugin":
             return job.done(False, "表情包插件还没装，先点上面的「补装」。")
+        if why == "novoice":
+            return job.done(False, "语音还没接上，先在上面把语音补装好。")
         return job.done(False, "没改成：" + S.redact(r.get("msg", ""))[:120])
     refresh()
-    return job.done(True, (S.GROUP_REPLY_MSG if kind == "group_reply" else S.MEME_FREQ_MSG)[val])
+    return job.done(True, msgs[val])
 
 
 def act_quick(job):
@@ -1175,6 +1178,7 @@ ACTIONS = {
     "autostart_fix": ("autostart", "服务器重启后", lambda j, b: act_quick(j)),
     "group_reply": ("grouprep", "群里回复时", lambda j, b: act_setting(j, "group_reply", str(b.get("mode", "")))),
     "meme_freq": ("memefreq", "表情包发多少", lambda j, b: act_setting(j, "meme_freq", str(b.get("level", "")))),
+    "voice_freq": ("voicefreq", "语音发多少", lambda j, b: act_setting(j, "voice_freq", str(b.get("level", "")))),
     "set_expire": ("expire", "记到期日", lambda j, b: act_set_expire(j, b.get("date"))),
     "open_napcat": ("napweb", "打开 NapCat 后台", lambda j, b: act_open_napcat(j)),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: S.act_skill_update(j)),

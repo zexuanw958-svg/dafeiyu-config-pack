@@ -13,7 +13,7 @@
   logs brain|qq [行数]           最近的日志（打过码）
   qr                            NapCat 现在的二维码（base64）和登录走到哪了
   start brain|qq|docker / restart brain|qq
-  setting group_reply off|mention|quote|both / setting meme_freq few|mid|many
+  setting group_reply off|mention|quote|both / setting meme_freq few|mid|many / setting voice_freq few|mid|many
   import memes|memory|voice|video   放后台补装（docker compose run tools 跑导入工具），日志在 logs/import-<块>.log
   quicklogin [--recreate]       让 NapCat 记住小号（.env 写 NAPCAT_ACCOUNT，compose.yml 加 ACCOUNT）；--recreate 且 NapCat 在跑就重建它
   autostart                     systemctl enable docker
@@ -46,6 +46,7 @@ LM_PLUGIN = "astrbot_plugin_livingmemory"
 MEME_NAMES = {"blue-fat-fish-meme-pack": "蓝色大肥鱼表情包", "deepseek-fanart-meme-pack": "DeepSeek 二创表情包"}
 GROUP_REPLY = {"off": (False, False), "mention": (True, False), "quote": (False, True), "both": (True, True)}
 MEME_FREQ = {"few": 30, "mid": 60, "many": 100}
+VOICE_FREQ = {"few": 0.15, "mid": 0.33, "many": 0.66}  # 和本机工作台 server.py 的同名表一致
 BLOCKS = ("memes", "memory", "voice", "video", "core", "plugins")
 RESULT_RX = re.compile(r"^RESULT\s+(\w+)=(\w+)(?:\s+reason=(\S+))?(?:\s+next=(.*))?$")
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -477,7 +478,21 @@ def settings(cfg):
     wl = bool(ps.get("enable_id_white_list")) if cfg else None
     vc = read_json(DATA / "config" / "astrbot_plugin_dafeiyu_video_config.json", {}) or {}
     video = {"plugin": (DATA / "plugins" / "astrbot_plugin_dafeiyu_video").is_dir(), "asr": "online" if str(vc.get("asr_key") or "").strip() else "none"}
-    return gr, mf, wl, video
+    p = voice_provider(cfg)
+    vv = None if not p else (p.get("seed_audio_reply_probability", 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1))
+    vf = "" if isinstance(vv, bool) or not isinstance(vv, (int, float)) else min(VOICE_FREQ, key=lambda k: abs(VOICE_FREQ[k] - vv))
+    return gr, mf, wl, video, vf
+
+
+def voice_provider(cfg):
+    """语音用的提供商配置；没接语音返回 None。"""
+    pid = str((cfg.get("provider_tts_settings") or {}).get("provider_id") or "")
+    return next((x for x in cfg.get("provider") or [] if isinstance(x, dict) and pid and str(x.get("id")) == pid), None)
+
+
+def voice_whole(p):
+    """豆包整条合成：语音比例由豆包插件按提供商里的 seed_audio_reply_probability 掷骰子。"""
+    return bool(p) and p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))
 
 
 def answers():
@@ -564,7 +579,7 @@ def cmd_status():
     c = containers()
     a, n = c.get("astrbot", {}), c.get("napcat", {})
     cfg = cmd_config()
-    gr, mf, wl, video = settings(cfg)
+    gr, mf, wl, video, vf = settings(cfg)
     env = read_text(D / ".env")
     comp = read_text(D / "compose.yml")
     code_en, en = sh(["systemctl", "is-enabled", "docker"], 10)
@@ -577,7 +592,7 @@ def cmd_status():
         "conns": qq_conns(a.get("pid")) if a.get("running") else 0,
         "bot": mask_qq(uin), "nc": napcat_state(n),
         "answers": answers(), "mem": memory_wiring(cfg), "memes": meme_info(), "stats": today_stats(),
-        "group_reply": gr, "meme_freq": mf, "whitelist": wl, "video": video,
+        "group_reply": gr, "meme_freq": mf, "voice_freq": vf, "whitelist": wl, "video": video,
         "kit": kit_version(), "pack": str((read_json(PACK / "settings" / "pack.json", {}) or {}).get("version") or ""),
         "imports": import_states(), "private": sorted(f.name for f in PRIV.iterdir() if f.is_file()) if PRIV.is_dir() else [],
         "quick": {"uin": bool(uin), "env": bool(re.search(r"(?m)^NAPCAT_ACCOUNT=\S+", env)), "compose": bool(re.search(r"(?m)^\s*-\s*ACCOUNT=", comp))},
@@ -675,7 +690,8 @@ def astr_login():
 def cmd_setting():
     kind = POS[1] if len(POS) > 1 else ""
     val = POS[2] if len(POS) > 2 else ""
-    if (kind == "group_reply" and val not in GROUP_REPLY) or (kind == "meme_freq" and val not in MEME_FREQ) or kind not in ("group_reply", "meme_freq"):
+    table = {"group_reply": GROUP_REPLY, "meme_freq": MEME_FREQ, "voice_freq": VOICE_FREQ}.get(kind)
+    if table is None or val not in table:
         return out({"ok": False, "why": "bad"})
     tok = astr_login()
     if not tok:
@@ -686,6 +702,21 @@ def cmd_setting():
             ps = cfg.setdefault("platform_settings", {})
             ps["reply_with_mention"], ps["reply_with_quote"] = GROUP_REPLY[val]
             astr_api("PUT", "/config-profiles/default", cfg, tok)
+        elif kind == "voice_freq":
+            cfg = astr_api("GET", "/config-profiles/default", None, tok)["config"]
+            p = voice_provider(cfg)
+            if not p:
+                return out({"ok": False, "why": "novoice"})
+            cfg.setdefault("provider_tts_settings", {})["trigger_probability"] = VOICE_FREQ[val]
+            astr_api("PUT", "/config-profiles/default", cfg, tok)
+            if voice_whole(p):
+                from urllib.parse import quote
+                pid = quote(str(p["id"]), safe="")
+                cur = astr_api("GET", "/providers/" + pid, None, tok) or {}
+                cur = cur.get("provider", cur) if isinstance(cur, dict) else {}
+                if isinstance(cur, dict) and cur.get("id") == p["id"]:
+                    cur["seed_audio_reply_probability"] = VOICE_FREQ[val]
+                    astr_api("PUT", "/providers/" + pid, {"config": cur}, tok, 60)
         else:
             if not any(isinstance(p, dict) and p.get("name") == "meme_manager" for p in astr_api("GET", "/plugins", None, tok) or []):
                 return out({"ok": False, "why": "noplugin"})
