@@ -51,7 +51,7 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # 便携版 Python（python312._pth）不把脚本所在的文件夹放进 sys.path
     sys.path.insert(0, str(HERE))
@@ -238,6 +238,7 @@ def load_secret_values():
 
 _RX = [
     (re.compile(r"sk-[A-Za-z0-9_\-]{8,}"), "sk-****"),
+    (re.compile(r"brz_[A-Za-z0-9_\-]{8,}"), "brz_****"),
     (re.compile(r"eyJ[\w\-]{10,}\.[\w\-]{10,}\.[\w\-]{5,}"), "****"),
     (re.compile(r"(?i)(bearer\s+)[\w.\-~+/=]+"), r"\1****"),
     (re.compile(r"(?i)((?:access_?token|api_?key|apikey|secret|password|passwd|pwd|token|密码)[\"']?\s*[:=：]\s*[\"']?)[^\s\"',;&}]+"), r"\1****"),
@@ -836,8 +837,12 @@ def voice_provider(cfg):
     return next((x for x in cfg.get("provider") or [] if isinstance(x, dict) and pid and str(x.get("id")) == pid), None)
 
 
+def voice_probability_key(p):
+    return "breeze_online_reply_probability" if p.get("type") == "breeze_online_tts" else "seed_audio_reply_probability"
+
+
 def voice_whole(p):
-    return bool(p) and p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))
+    return bool(p) and ((p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))) or (p.get("type") == "breeze_online_tts" and bool(p.get("breeze_online_whole_reply"))))
 
 
 def voice_freq():
@@ -846,7 +851,7 @@ def voice_freq():
     p = voice_provider(cfg)
     if not p:
         return ""
-    v = p.get("seed_audio_reply_probability", 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1)
+    v = p.get(voice_probability_key(p), 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1)
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return ""
     return min(VOICE_FREQ, key=lambda k: abs(VOICE_FREQ[k] - v))
@@ -872,7 +877,7 @@ def act_voice_freq(job, level):
         r = astr_call(tok, "GET", f"/providers/{pid}") or {}
         cur = r.get("provider", r) if isinstance(r, dict) else {}
         if isinstance(cur, dict) and cur.get("id") == p["id"]:
-            astr_call(tok, "PUT", f"/providers/{pid}", {"config": {**cur, "seed_audio_reply_probability": VOICE_FREQ[level]}}, 60)
+            astr_call(tok, "PUT", f"/providers/{pid}", {"config": {**cur, voice_probability_key(p): VOICE_FREQ[level]}}, 60)
     drop_cache("status")
     return job.done(True, VOICE_FREQ_MSG[level])
 
@@ -1539,6 +1544,8 @@ def collect_status():
                       "没在运行，她现在只能打字。" + ("修复会把它重新开起来，大约 20 秒。" if fx else "找不到 Breeze 的启动文件，交给 Agent 看看。"), fix=fx, links=vlinks)
     elif voice == "3":
         vi = item("voice", "语音 · 豆包", "i-mic", vwhat, "ok", "在线服务，不用开。按说话时长扣钱，大约一分钟一块。", links=vlinks)
+    elif voice == "5":
+        vi = item("voice", "语音 · Breeze 在线版", "i-mic", "让她能发语音，不占显存。", "ok", "已选择在线服务，不用在本机开语音程序；按字扣积分，余额和密钥请在 Breeze 网页核对。超过 120 字保留文字。", links=vlinks)
     elif voice == "1":
         vi = item("voice", "语音 · Edge 免费女声", "i-mic", vwhat, "ok", "在线服务，不用开，不花钱。", links=vlinks)
     elif voice == "2":
@@ -1671,7 +1678,7 @@ def collect_status():
 
     # 补装（功能页）
     feats = []
-    for blk, label, chosen in (("voice", "语音", voice in ("1", "2", "3", "4")), ("memory", "记忆", mem in ("1", "2")), ("memes", "表情包", True), ("video", "看视频", video)):
+    for blk, label, chosen in (("voice", "语音", voice in ("1", "2", "3", "4", "5")), ("memory", "记忆", mem in ("1", "2")), ("memes", "表情包", True), ("video", "看视频", video)):
         s = import_log_state(blk)
         feats.append({"block": blk, "label": label, "chosen": chosen, "running": bool(s and s["running"]), "step": (s or {}).get("step", ""), "pct": (s or {}).get("pct"),
                       "result": result_text((s or {}).get("result")), "result_status": ((s or {}).get("result") or {}).get("status", ""),
@@ -1722,7 +1729,7 @@ def collect_status():
         "paths": {"backend": str(DIR / "private" / "backend.txt"), "private": str(DIR / "private")},
         "group_reply": group_reply_mode(),
         "meme_freq": meme_freq(),
-        "voice_freq": voice_freq() if voice in ("1", "2", "3", "4") else "",
+        "voice_freq": voice_freq() if voice in ("1", "2", "3", "4", "5") else "",
     }
 
 
@@ -2094,7 +2101,7 @@ def act_import(job, block):
     a = answers()
     if block == "memory" and a.get("memory") not in ("1", "2"):
         return job.done(False, "你装的时候没选记忆。想要的话去「交给 Agent」。")
-    if block == "voice" and a.get("voice") not in ("1", "2", "3", "4"):
+    if block == "voice" and a.get("voice") not in ("1", "2", "3", "4", "5"):
         return job.done(False, "你装的时候没选语音。想要的话去「交给 Agent」。")
     if block == "video" and a.get("video") != "1":
         return job.done(False, "你装的时候没选看视频。想要的话去「交给 Agent」。")

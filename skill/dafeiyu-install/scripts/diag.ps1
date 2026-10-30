@@ -38,6 +38,7 @@ function Hide([string]$s) {
     foreach ($v in $secretVals) { $s = $s.Replace($v, '****') }
     foreach ($v in $qqVals) { $s = $s -replace "(?<!\d)$v(?!\d)", ($v.Substring(0, 2) + '****' + $v.Substring($v.Length - 2)) }
     $s = $s -replace 'sk-[A-Za-z0-9_\-]{8,}', 'sk-****'
+    $s = $s -replace 'brz_[A-Za-z0-9_\-]{8,}', 'brz_****'
     $s = $s -replace 'eyJ[\w\-]{10,}\.[\w\-]{10,}\.[\w\-]{5,}', '****'
     $s = $s -replace '(?i)(bearer\s+)[\w.\-~+/=]+', '$1****'
     $s = $s -replace '(?i)((?:access_?token|api_?key|apikey|secret|password|passwd|pwd|token|密码)["'']?\s*[:=：]\s*["'']?)[^\s"'',;&}]+', '$1****'
@@ -181,6 +182,7 @@ switch ($voice) {
             Problem 'VOICE-OFF' '发不了语音' 'Breeze 没在运行（8137 没在听）'
         }
     }
+    '5' { Check '正常' '语音（Breeze 在线版）' '已选择在线服务；余额、密钥和连通性以实际合成为准' }
     '3' { Check '正常' '语音（豆包）' '在线服务，不用开' }
     '2' { Check '正常' '语音（小米 MiMo）' '在线服务，不用开' }
     '1' { Check '正常' '语音（Edge 免费女声）' '在线服务，不用开' }
@@ -305,7 +307,7 @@ W "工作目录：$Dir"
 
 Sec '装了什么'
 $memTxt = @{ '0' = '没开'; '1' = '本机 Ollama'; '2' = '硅基流动' }["$mem"]; if (-not $memTxt) { $memTxt = "（$mem）" }
-$voiceTxt = @{ '0' = '没开'; '1' = 'Edge 免费女声'; '2' = '小米 MiMo'; '3' = '豆包'; '4' = '本机 Breeze' }["$voice"]; if (-not $voiceTxt) { $voiceTxt = "（$voice）" }
+$voiceTxt = @{ '0' = '没开'; '1' = 'Edge 免费女声'; '2' = '小米 MiMo'; '3' = '豆包'; '4' = '本机 Breeze'; '5' = 'Breeze 在线版' }["$voice"]; if (-not $voiceTxt) { $voiceTxt = "（$voice）" }
 W "大脑：$(if ($cli) { '命令行装的 AstrBot' } else { 'AstrBot 启动器' })；登 QQ：$pname；记忆：$memTxt；语音：$voiceTxt；看视频：$(if ($ans['video'] -eq '1') { '开' } else { '没开' })"
 W "群聊：$(if (Test-Path "$Dir\private\group.txt") { '进了群' } else { '只私聊' })"
 W "private 里的文件：$((@(Get-ChildItem "$Dir\private" -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })) -join '、')（只列名字，内容不写）"

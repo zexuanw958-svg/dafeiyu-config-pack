@@ -355,7 +355,7 @@ def base_status(items, d, connecting=False, err=None):
         versions.append(["服务器系统", re.sub(r"\s*\(.*?\)", "", d["host"]["os"])[:40]])
     desc = {"cloud.txt": "服务器地址和登录用户名", "cloud_key": "连服务器的钥匙（私钥，别发给任何人）", "cloud_key.pub": "钥匙的公开那一半",
             "cloud-backend.txt": "AstrBot 后台的账号和密码", "napcat-webui.txt": "NapCat 后台口令", "cloud_known_hosts": "服务器的指纹（认准是这台）",
-            "deepseek-key.txt": "DeepSeek 密钥（扣钱的钥匙）", "owner-qq.txt": "你的大号", "siliconflow-key.txt": "硅基流动密钥", "volc.txt": "豆包语音的两项凭证"}
+            "deepseek-key.txt": "DeepSeek 密钥（扣钱的钥匙）", "owner-qq.txt": "你的大号", "siliconflow-key.txt": "硅基流动密钥", "volc.txt": "豆包语音的两项凭证", "breeze-key.txt": "Breeze 在线语音密钥"}
     secrets_files = []
     try:
         for f in sorted((S.DIR / "private").iterdir()):
@@ -402,7 +402,7 @@ def stats_of(d):
 def feats_of(d):
     a = d.get("answers") or {}
     feats = []
-    for blk, label, chosen in (("voice", "语音", a.get("voice") in ("1", "2", "3")), ("memory", "记忆", a.get("memory") in ("1", "2")),
+    for blk, label, chosen in (("voice", "语音", a.get("voice") in ("1", "2", "3", "5")), ("memory", "记忆", a.get("memory") in ("1", "2")),
                                ("memes", "表情包", True), ("video", "看视频", a.get("video") == "1")):
         s = imp_state(d, blk)
         feats.append({"block": blk, "label": label, "chosen": chosen, "running": bool(s and s["running"]), "step": (s or {}).get("step", ""), "pct": (s or {}).get("pct"),
@@ -541,6 +541,8 @@ def collect_status():
     vlinks = [{"label": "换模型、语音", "href": base + "/#/providers"}]
     if voice == "3":
         vi = S.item("voice", "语音 · 豆包", "i-mic", "让她能发语音。", "ok", "在线服务，不用开。按说话时长扣钱，大约一分钟一块。", links=vlinks)
+    elif voice == "5":
+        vi = S.item("voice", "语音 · Breeze 在线版", "i-mic", "让她能发语音，不占显存。", "ok", "已选择在线服务，不用在本机开语音程序；按字扣积分，余额和密钥请在 Breeze 网页核对。超过 120 字保留文字。", links=vlinks)
     elif voice == "1":
         vi = S.item("voice", "语音 · Edge 免费女声", "i-mic", "让她能发语音。", "ok", "在线服务，不用开，不花钱。", links=vlinks)
     elif voice == "2":
@@ -784,7 +786,7 @@ def act_import(job, block):
     a = d.get("answers") or {}
     if block == "memory" and a.get("memory") not in ("1", "2"):
         return job.done(False, "你装的时候没选记忆。想要的话去「交给 Agent」。")
-    if block == "voice" and a.get("voice") not in ("1", "2", "3"):
+    if block == "voice" and a.get("voice") not in ("1", "2", "3", "5"):
         return job.done(False, "你装的时候没选语音。想要的话去「交给 Agent」。")
     if block == "video" and a.get("video") != "1":
         return job.done(False, "你装的时候没选看视频。想要的话去「交给 Agent」。")

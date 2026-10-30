@@ -439,8 +439,10 @@ elif A.cmd == "status":
     print("1 登 QQ 的程序：", {"snowluma": "SnowLuma", "napcat": "NapCat"}.get(proto.lower(), proto))
     tts = cfg.get("provider_tts_settings") or {}
     tp = provs.get(tts.get("provider_id"))
-    if tts.get("enable") and tp:
-        print(f"2 语音：开着，「{tp.get('id')}」（{where(tp)}，{tp.get('type')}），{int(float(tts.get('trigger_probability', 1)) * 100)}% 的回复带语音")
+    whole = tp and ((tp.get("type") == "breeze_online_tts" and tp.get("breeze_online_whole_reply")) or (tp.get("type") == "seed_audio_tts" and tp.get("seed_audio_whole_reply")))
+    if tp and tp.get("enable", True) and (tts.get("enable") or whole):
+        rate = tp.get("breeze_online_reply_probability" if tp.get("type") == "breeze_online_tts" else "seed_audio_reply_probability", 0.33) if whole else tts.get("trigger_probability", 1)
+        print(f"2 语音：开着，「{tp.get('id')}」（{where(tp)}，{tp.get('type')}），{int(float(rate) * 100)}% 的回复带语音")
     else:
         print("2 语音：没开")
     plugins = call("GET", "/plugins", None, T).get("data") or []

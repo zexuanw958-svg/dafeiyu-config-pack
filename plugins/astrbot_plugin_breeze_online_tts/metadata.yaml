@@ -1,0 +1,6 @@
+name: astrbot_plugin_breeze_online_tts
+display_name: Breeze 在线语音
+desc: 复用 ElevenLabs 兼容接口，短回复整条语音，长回复和失败保留文字
+version: v0.1.0
+author: Codex
+repo: https://github.com/zexuanw958-svg/dafeiyu-config-pack

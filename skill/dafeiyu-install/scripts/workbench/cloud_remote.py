@@ -195,6 +195,7 @@ def load_secrets():
 
 RX = [
     (re.compile(r"sk-[A-Za-z0-9_\-]{8,}"), "sk-****"),
+    (re.compile(r"brz_[A-Za-z0-9_\-]{8,}"), "brz_****"),
     (re.compile(r"(?i)(txz\.qq\.com/p\?k=)\S+"), r"\1****"),
     (re.compile(r"(?i)((?:access_?token|api_?key|apikey|secret|password|passwd|token|密码)[\"']?\s*[:=：]\s*[\"']?)[^\s\"',;&}]+"), r"\1****"),
     (re.compile(r"(?i)([?&]token=)[^\s&\"']+"), r"\1****"),
@@ -479,7 +480,7 @@ def settings(cfg):
     vc = read_json(DATA / "config" / "astrbot_plugin_dafeiyu_video_config.json", {}) or {}
     video = {"plugin": (DATA / "plugins" / "astrbot_plugin_dafeiyu_video").is_dir(), "asr": "online" if str(vc.get("asr_key") or "").strip() else "none"}
     p = voice_provider(cfg)
-    vv = None if not p else (p.get("seed_audio_reply_probability", 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1))
+    vv = None if not p else (p.get(voice_probability_key(p), 0.33) if voice_whole(p) else (cfg.get("provider_tts_settings") or {}).get("trigger_probability", 1))
     vf = "" if isinstance(vv, bool) or not isinstance(vv, (int, float)) else min(VOICE_FREQ, key=lambda k: abs(VOICE_FREQ[k] - vv))
     return gr, mf, wl, video, vf
 
@@ -490,9 +491,13 @@ def voice_provider(cfg):
     return next((x for x in cfg.get("provider") or [] if isinstance(x, dict) and pid and str(x.get("id")) == pid), None)
 
 
+def voice_probability_key(p):
+    return "breeze_online_reply_probability" if p.get("type") == "breeze_online_tts" else "seed_audio_reply_probability"
+
+
 def voice_whole(p):
     """豆包整条合成：语音比例由豆包插件按提供商里的 seed_audio_reply_probability 掷骰子。"""
-    return bool(p) and p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))
+    return bool(p) and ((p.get("type") == "seed_audio_tts" and bool(p.get("seed_audio_whole_reply"))) or (p.get("type") == "breeze_online_tts" and bool(p.get("breeze_online_whole_reply"))))
 
 
 def answers():
@@ -715,7 +720,7 @@ def cmd_setting():
                 cur = astr_api("GET", "/providers/" + pid, None, tok) or {}
                 cur = cur.get("provider", cur) if isinstance(cur, dict) else {}
                 if isinstance(cur, dict) and cur.get("id") == p["id"]:
-                    cur["seed_audio_reply_probability"] = VOICE_FREQ[val]
+                    cur[voice_probability_key(p)] = VOICE_FREQ[val]
                     astr_api("PUT", "/providers/" + pid, {"config": cur}, tok, 60)
         else:
             if not any(isinstance(p, dict) and p.get("name") == "meme_manager" for p in astr_api("GET", "/plugins", None, tok) or []):

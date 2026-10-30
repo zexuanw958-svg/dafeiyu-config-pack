@@ -1,0 +1,6 @@
+{
+  "name": "astrbot_plugin_breeze_online_tts",
+  "what": "Breeze 在线语音，复用 AstrBot ElevenLabs 接口，长回复和失败保留文字",
+  "only_with_voice": "5",
+  "always_reinstall": true
+}

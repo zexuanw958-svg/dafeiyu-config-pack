@@ -18,6 +18,12 @@ $bundled = Join-Path (Split-Path $PSScriptRoot) 'pack\dafeiyu-config-pack'
 $old = (Test-Path $tool) -and -not (Select-String -Path $tool -Pattern '--only' -SimpleMatch -Quiet)
 # 要装桌宠、工作目录里那份配置包还不认 pet 这块（10-28 以前的包）：同样换成 Skill 自带的
 if ((Test-Path $tool) -and ($Only -match 'pet') -and -not (Select-String -Path $tool -Pattern 'def block_pet' -SimpleMatch -Quiet)) { $old = $true }
+if ((Test-Path $tool) -and ($Only -match 'voice')) {
+    try {
+        $a = Get-Content -Raw -Encoding UTF8 "$Dir\answers.json" | ConvertFrom-Json
+        if ($a.voice -eq '5' -and -not (Select-String -Path $tool -Pattern 'breeze_online_tts' -SimpleMatch -Quiet)) { $old = $true }
+    } catch {}
+}
 if (((-not (Test-Path $tool)) -or $old) -and (Test-Path "$bundled\tools\import_dafeiyu.py")) {
     $dst = "$Dir\dafeiyu-config-pack"
     if (Test-Path $dst) {

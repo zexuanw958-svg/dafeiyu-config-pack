@@ -845,6 +845,8 @@ def block_voice(S):
     if voice == "3" and v["doubao"]["plugin"] not in S.installed:
         # 豆包要配置包里的语音插件；单独跑语音这块时 plugins 块可能没装它
         install_extras(S, lambda meta, name: meta.get("only_with_voice") == "3" and not meta.get("opt_in"))
+    if voice == "5":
+        install_extras(S, lambda meta, name: meta.get("only_with_voice") == "5")
     if voice == "1":
         e = v["edge"]
         for pkg in e["pip"]:
@@ -913,12 +915,40 @@ def block_voice(S):
                     "openai-tts-voice": bz["voice"], "timeout": 180, "proxy": ""}
             say("  试念一句，Breeze 要几秒…")
             tts_id = bz["id"] if upsert_provider(api, conf) else ""
+    elif voice == "5":
+        bz = v["breeze_online"]
+        cred = str(ANSWERS.get("breeze_api_key_file") or "")
+        vid = str(ANSWERS.get("breeze_voice_id") or bz["voice_id"])
+        if bz["plugin"] not in S.installed:
+            warn("Breeze 在线语音插件没装上，先跳过语音")
+        elif not cred or not os.path.isfile(cred):
+            warn("缺少 Breeze 密钥文件：请把密钥存进 private，再填 breeze_api_key_file")
+        elif not re.fullmatch(r"voc_[A-Za-z0-9_-]+", vid):
+            warn("Breeze 音色 ID 不对，应从网页复制 voc_ 开头的 ID")
+        else:
+            conf = {"id": bz["id"], "type": "breeze_online_tts", "provider": "breeze",
+                    "provider_type": "text_to_speech", "enable": True,
+                    "credentials_file": cred, "api_key": "", "api_base": bz["api_base"], "model": bz["model"],
+                    "elevenlabs-tts-voice-id": vid, "elevenlabs-tts-output-format": "mp3_24000_128",
+                    "breeze_online_whole_reply": True, "breeze_online_reply_probability": v["trigger_probability"],
+                    "breeze_online_max_chars": bz["max_chars"], "timeout": bz["timeout"], "proxy": ""}
+            say("  试念一句，Breeze 在线版按字扣积分（不自动重试）…")
+            tts_id = bz["id"] if upsert_provider(api, conf) else ""
     if voice != "3":
         # 以前选过豆包又换了别的：豆包插件只要看到它的提供商开着就会掷骰子发整条语音，得关掉
         old = provider_config(api, v["doubao"]["id"])
         if old and old.get("enable"):
             upsert_provider(api, {**old, "enable": False})
             say("  之前开着的豆包语音已关掉")
+    # 切换到其他路线、或先不要时，停掉旧的在线整条语音；不卸载、不删凭证。
+    if voice != "5":
+        old = provider_config(api, v["breeze_online"]["id"])
+        if old and old.get("enable"):
+            upsert_provider(api, {**old, "enable": False})
+    if voice == "5":
+        old = provider_config(api, v["breeze"]["id"])
+        if old and old.get("enable"):
+            upsert_provider(api, {**old, "enable": False})
     good = False
     if tts_id:
         good, why = test_provider(api, tts_id)
@@ -939,7 +969,7 @@ def block_voice(S):
     # AstrBot 自己的「语音输出」开关在全局设置里，只在这一块改
     cfg = S.config()
     tts = cfg.setdefault("provider_tts_settings", {})
-    if tts_id and voice == "3" and v["doubao"].get("whole_reply", True):
+    if tts_id and (voice == "5" or (voice == "3" and v["doubao"].get("whole_reply", True))):
         # 整条语音由豆包插件掷骰子、一次合成；AstrBot 自己的按段语音要关掉，不然会再按段转一遍
         tts.update({"enable": False, "provider_id": tts_id, "trigger_probability": v["trigger_probability"]})
     elif tts_id:
@@ -1248,9 +1278,11 @@ def main():
     voice, mimo_key, volc_app_id, volc_token = str(ANSWERS.get("voice", "")), "", "", ""
     if "voice" in wanted:
         say("\n语音选一个：3 豆包 Seed Audio（推荐，要火山引擎豆包语音的 APP ID 和 Access Token，按语音时长约 1 元/分钟）"
-            "  4 本机 Breeze（免费，显卡在本机算，先用「装Breeze语音.bat」「做声音.bat」装好、做好声音）"
+            "  5 Breeze 在线版（不用显卡，按字扣积分；密钥存 private 文件）  4 本机 Breeze（免费，显卡在本机算，先用「装Breeze语音.bat」「做声音.bat」装好、做好声音）"
             "  1 微软 Edge 免费女声  2 小米 MiMo 克隆音（要 MiMo 的 key）  0 先不开")
-        voice = ask("voice", "选", "3", choices=["0", "1", "2", "3", "4"])
+        voice = ask("voice", "选", "3", choices=["0", "1", "2", "3", "4", "5"])
+        if voice == "5" and not ANSWERS.get("breeze_api_key_file"):
+            ANSWERS["breeze_api_key_file"] = ask("breeze_api_key_path", "Breeze 密钥文件路径（先把密钥存进 private 文件，不要在这里输入密钥）")
         mimo_key = ask("mimo_key", "MiMo key（输入时不显示）", secret=True) if voice == "2" else ""
         if voice == "3":
             volc_app_id = ask("volc_app_id", "豆包语音 APP ID")
