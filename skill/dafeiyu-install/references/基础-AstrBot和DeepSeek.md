@@ -99,9 +99,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\install-astrbot.ps1" -D
 体检里 AstrBot 实例是 `launcher` 的，就不另装命令行版，在他的实例上接着做。它的默认人格不是大肥鱼的（体检 `origin` 是 `own` 或 `stock`），先照 SKILL.md 第 1 步 B 问他整个变成大肥鱼、只拿几样还是另装一套，别直接跑 core；选「只拿几样」的，下面只做建工作目录、写 `backend.txt` 这一条，`deepseek`、`bot`、`whitelist` 都不跑：
 
 - 实例在 `<启动器数据目录>\instances\<uuid>\`，数据目录默认 `%USERPROFILE%\.astrbot_launcher`，改过的话记在 `%APPDATA%\com.github.raven95676.astrbot-launcher\.data-dir.json`。配置是 `core\data\cmd_config.json`。
-- 后台端口不一定是 6185，启动器会另给（见过 18607、21233）：看实例目录下的 python 进程在听哪个端口。没在跑就让他在启动器里点启动。
+- 后台端口由启动器实例的设置决定：填 0 就是每次启动随机找空闲端口，填正数才固定。启动器用 `DASHBOARD_PORT`、`DASHBOARD_HOST` 环境变量传进去，会盖过 `cmd_config.json` 的 `dashboard`；别看配置里的 6185 就认定是它。OneBot 的端口另由 `platform` 里的 `ws_reverse_port` 决定，启动器不替它随机换；本 Skill 新建的平台默认是 6199。
+- `Get-BackendState <工作目录>`（或 `python backend_state.py --dir <工作目录>`）按这个实例的 `core\main.py` 进程和真实监听端口找后台。优先按已记的实例路径、OneBot token 或原端口归属认实例；多个实例认不准时不猜。第一次认准后记在 `private\backend-instance.txt`，换实例时要由 Agent 核对并更新这份路径。
+- 后台端口变了，探针会先在 `private` 留 `backend.txt.before-port-时间-随机串.bak`，再只改 `backend.txt` 的 url，账号密码和原换行不动。工作台、重登工具、体检、桌宠共用这套口径。没在跑就让他在启动器里点这个实例的「启动」。
 - `astr_setup.py` 只认 `<工作目录>\private\backend.txt`：建好工作目录，把 `url: http://127.0.0.1:<端口>`、他的后台账号、密码写进去（让他用记事本粘密码）。他忘了密码：让他在启动器里停实例，你用实例自带的 python 跑 `astrbot conf set dashboard.password`（在实例的 `core` 目录下；待实测），或者让他在启动器里重置。
 - 然后 `deepseek`、`bot`、`whitelist` 照常跑（`<py>` 换成实例的 `venv\Scripts\python.exe`，脚本本身只用标准库）。
-- 后台只听本机：让他在启动器里停实例，你把 `cmd_config.json` 的 `dashboard.host` 改成 `127.0.0.1`（`astr_setup.py dashboard-local` 只认工作目录里的 AstrBot，启动器版手动改），再启动。
+- 后台只听本机：让他在启动器里停实例，让他在启动器实例的齿轮设置里把监听地址选成 `127.0.0.1`，再启动。启动器会用环境变量盖过 `cmd_config.json` 的 host，只改那个文件不算数。
 - 部署时报 403、Python 组件下不动：飞书 11.3 的解法（开关「中国大陆一键加速」、清空虚拟环境、重试）。都不行就跟他商量改走命令行版，旧实例只停不删。
-- 开机自启：启动器装的大脑不归 `finish.ps1` 管，要他自己在启动器最左边「高级」→「通用」里打开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」，「关闭窗口时」保持「最小化到系统托盘」（启动器一退出，实例跟着停）。第 8 步 `finish.ps1` 会查、会打出这段，细节在 `收尾-自启和掉线.md`。10-28 群友那台就是漏了这步，重启后她不回来。
+- 开机自启：启动器装的大脑不归 `finish.ps1` 管，要他自己在启动器最左边「高级」→「通用」里打开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」，「关闭窗口时」保持「最小化到系统托盘」（启动器一退出，实例跟着停）。第 8 步 `finish.ps1` 会查、会打出这段，细节在 `收尾-自启和掉线.md`。这三个开关只设恢复条件，不能保证关机时一定保存成功。下次开机只有启动器起来时，在启动器点这个实例的「启动」，QQ 会在后台等着；不要另外起一份相同实例。

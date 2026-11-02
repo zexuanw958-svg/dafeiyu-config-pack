@@ -1,19 +1,19 @@
 ﻿# 装完以后的「大肥鱼工作台」：双击桌面图标 → 两三秒查一遍她在不在 → 生成本机网页打开（代替以前的《大肥鱼怎么用.txt》）。
-# 只查不改：看端口、进程和文件，不登录后台、不读秘密。网页里的按钮直达 AstrBot 后台对应页面；换角色、上云这类复杂的事，复制一句话交给 Agent。
+# 看端口、进程和文件，不登录后台；过期后台端口按共同探针校正并先备份。网页里的按钮直达 AstrBot 后台对应页面；换角色、上云这类复杂的事，复制一句话交给 Agent。
 # 正式版工作台是 workbench\（本机小服务 + 小窗口，能修能补装）；这个脚本是它的兜底：找不到 AstrBot 自带的 Python 时，open.ps1 退回这里生成静态页。
 # finish.ps1 把它拷到 <工作目录>\tools\，桌面快捷方式「大肥鱼工作台」指向同目录的 workbench.cmd。
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File workbench.ps1 [-Dir C:\dafeiyu] [-NoOpen]
 param([string]$Dir = (Split-Path $PSScriptRoot), [switch]$NoOpen)
 $ErrorActionPreference = 'Continue'
 $Dir = $Dir.TrimEnd('\')
+. "$PSScriptRoot\common.ps1"
 function Esc([string]$s) { [Net.WebUtility]::HtmlEncode($s) }
 function Listening([int]$p) { [bool](Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue) }
 
-# 后台端口：backend.txt 的 url 里写的（启动器常另给端口），没有就 6185
-$port = 6185
+$bs = Get-BackendState $Dir
+$port = [int]$bs.port
 $bk = "$Dir\private\backend.txt"
-if (Test-Path $bk) { foreach ($l in Get-Content -Encoding UTF8 $bk) { if ($l -match '^\s*url\s*[:：].*:(\d+)') { $port = [int]$Matches[1] } } }
-$base = "http://127.0.0.1:$port"
+$base = $bs.url
 $ans = @{}
 try { (Get-Content -Raw -Encoding UTF8 "$Dir\answers.json" | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $ans[$_.Name] = "$($_.Value)" } } catch {}
 $voice = $ans['voice']; $memory = $ans['memory']; $video = $ans['video'] -eq '1'
@@ -23,10 +23,20 @@ $group = (Test-Path "$Dir\private\group.txt") -and ((Get-Content -Raw "$Dir\priv
 # ---- 状态灯：ok / bad / off（没装这项）
 $rows = New-Object Collections.Generic.List[object]
 function Row([string]$s, [string]$n, [string]$t) { $script:rows.Add(@($s, $n, $t)) }
-$brain = Listening $port
-if ($brain) { Row ok '大脑（AstrBot）' '开着' } else { Row bad '大脑（AstrBot）' "没开。双击桌面「$reName」，它会先把大脑开起来" }
-$qq = [bool](Get-NetTCPConnection -RemotePort 6199 -State Established -ErrorAction SilentlyContinue)
-if ($qq) { Row ok 'QQ' '小号在线' } elseif ($brain) { Row bad 'QQ' "小号没登上。双击桌面「$reName」，照弹出来的窗口做" } else { Row bad 'QQ' '大脑没开，QQ 也连不上，先照上一行做' }
+$brain = $bs.state -eq 'up'
+if ($brain) { Row ok '大脑（AstrBot）' '开着' }
+elseif ($bs.state -eq 'starting') { Row off '大脑（AstrBot）' '正在起来，再等一会儿' }
+elseif (Test-Path "$Dir\start-astrbot.cmd") { Row bad '大脑（AstrBot）' "没开。双击桌面「$reName」，它会先把大脑开起来" }
+elseif ($bs.ambiguous) { Row bad '大脑（AstrBot）' '有多个实例，还没认准这一个。请 Agent 核对实例，不要另开一份' }
+else { Row bad '大脑（AstrBot）' '启动器开着不等于实例开了。在 AstrBot 启动器里点这个实例的「启动」' }
+$qq = $bs.online
+if ($qq) { Row ok 'QQ' '小号在线' } elseif ($brain) { Row bad 'QQ' "小号没登上。双击桌面「$reName」，照弹出来的窗口做" } else { Row bad 'QQ' '在等大脑，先照上一行做' }
+$proto = if ($reName -match '重登') { 'snowluma' } else { 'napcat' }
+$dups = @(Get-NapCatStartup $Dir)
+if ($dups.Count) { Row bad '开机自启' '有重复 NapCat 启动项。在正式工作台点「修复」，旧入口会保留在工作目录的「旧版」里' }
+elseif (-not (Test-QQAutostart $Dir $proto)) { Row bad '开机自启' 'QQ 入口缺少等待大脑的逻辑。在正式工作台点「补上」，或请 Agent 重跑 finish.ps1' }
+elseif ($bs.kind -eq 'launcher') { Row off '开机自启' 'QQ 会等大脑。启动器实例没有自动恢复时，在启动器里点「启动」' }
+else { Row ok '开机自启' 'QQ 会隐藏等待网络和大脑，再尝试登录' }
 switch ($voice) {
     '4' { if (Listening 8137) { Row ok '语音' 'Breeze 开着（你显卡算的，不花钱）' } else { Row bad '语音' "Breeze 没开，她只会打字。双击 $Dir\breeze-tts\start-breeze.cmd" } }
     '3' { Row ok '语音' '豆包（在线服务，不用开，按时长扣钱）' }
@@ -134,7 +144,7 @@ $($copy -join "`n")
 <h2>怎么用</h2>
 <div class="box tips">
 <p><b>跟她聊：</b>用你大号私聊她就行$(if ($group) { '，或者在群里 @ 她' })，别的人她不理。想让她忘掉之前聊的，私聊发 <code>/reset</code>。</p>
-<p><b>开机：</b>她会自己起来，等一两分钟就在线。任务栏里那几个最小化的黑窗口别关，关了她就下线了。</p>
+<p><b>开机：</b>QQ 会在后台等网络和大脑；自动登录失效才打开扫码页。启动器只有窗口起来、实例没起来时，在启动器里点实例的「启动」。</p>
 <p><b>掉线：</b>QQ 风控挺严，小号偶尔被踢下线很正常，不是坏了。双击桌面「$reName」就行。</p>
 <p><b>花钱：</b>聊天走 DeepSeek，按用量扣，私聊很省，群聊和发图费一点。<a href="https://platform.deepseek.com/usage" target="_blank">DeepSeek 用量页</a>能看每天花了多少。$voiceCost</p>
 <p><b>东西都在哪：</b>全在 <code>$(Esc $Dir)</code> 下面，重装系统前把这个文件夹留着。</p>

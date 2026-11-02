@@ -582,6 +582,7 @@ try{ if(!sessionStorage.getItem('dfy-wb-sized') && (outerWidth<980 || outerHeigh
 
 /* ---------- token：只从地址栏的 #t= 读一次，读完抹掉 ---------- */
 let TOKEN='';
+let OPEN_DO=(location.hash.match(/[#&]do=(relogin)\b/)||[])[1]||'';  // 云端的掉线通知点进来：打开就开始扫码
 try{ const m=location.hash.match(/t=([\w-]+)/); if(m){ TOKEN=m[1]; sessionStorage.setItem('dfy-wb-token',TOKEN); history.replaceState(null,'',location.pathname); } else { TOKEN=sessionStorage.getItem('dfy-wb-token')||''; } }catch(e){ const m=location.hash.match(/t=([\w-]+)/); if(m) TOKEN=m[1]; }
 
 async function api(path, body){
@@ -701,7 +702,7 @@ function summarize(S){
   const m=(()=>{
     if(sv.state==='busy') return {face:'warn',chip:'正在连服务器',head:'正在连服务器',reason:sv.text,say:'connecting'};
     if(sv.state==='bad'){ const lost=!!(S.cloud&&S.cloud.err); return {face:'bad',chip:lost?'看不到她':'她现在回不了话',head:lost?'连不上服务器':'服务器出问题了',reason:sv.text,fix:sv.fix,link:sv.fix?null:(sv.links||[])[0],say:'server',log:'brain'}; }
-    if(b.state==='bad') return {face:'bad',chip:'她现在回不了话',head:/卡住/.test(b.text||'')?'大脑卡住了':'大脑没开',reason:b.text,fix:b.fix,say:'brain',log:'brain'};
+    if(b.state==='bad') return {face:'bad',chip:'她现在回不了话',head:/多个实例/.test(b.text||'')?'还没认准实例':/启动器/.test(b.text||'')?'在启动器里点「启动」':/卡住/.test(b.text||'')?'大脑卡住了':'大脑没开',reason:b.text,fix:b.fix,say:'brain',log:'brain'};
     if(b.state==='busy') return {face:'warn',chip:'正在起来',head:'她正在醒过来',reason:b.text,say:'brainBusy'};
     if(q.state==='bad') return {face:'bad',chip:'她现在回不了话',head:'小号没登上 QQ',reason:q.text,fix:q.fix,say:'qq',log:'qq'};
     if(q.state==='busy') return {face:'warn',chip:'正在重新登',head:'小号正在登',reason:q.text,say:'fixing',log:'qq'};
@@ -891,6 +892,12 @@ function renderItems(S){
   $('#tally').innerHTML=S.cloud&&S.cloud.connecting?'…<span>正在连</span>':`${good}/${S.items.length}<span>项正常</span>`;
   const h2=document.querySelector('#p-st .head h2'); if(h2) h2.textContent=cnNum(S.items.length)+'项检查';
 }
+function watchRow(S){
+  const w=S.watch||{}; if(!w.can) return '';
+  const say=!w.on?'关着：她掉线了不会弹通知，要自己开工作台看。':w.running?(S.cloud?'开着：这台电脑开机时，每 3 分钟问一次服务器。小号掉线就在右下角弹通知，点一下打开这里扫码。这台电脑关着就提醒不了。':'开着：小号连续掉线 3 分钟，或者被 QQ 踢下线，右下角弹通知，点一下就重新登录。一次掉线最多提醒 3 回。'):'开关开着，但后台程序这会儿没在跑。点「试一下」会把它起来。';
+  const go=w.on?'off':'on';
+  return `<div class="op game">${ic('i-bell')}<div class="grow"><b>掉线提醒</b><small>${esc(say)}</small></div><button class="btn sm ghost" data-run="qq_watch" data-body='{"mode":"test"}'>试一下</button><button class="switch${w.on?' on':''}" role="switch" aria-checked="${w.on?'true':'false'}" aria-label="掉线提醒" title="${w.on?'关掉掉线提醒':'打开掉线提醒'}" data-run="qq_watch" data-body='{"mode":"${go}"}'></button></div>`;
+}
 function renderOpsCloud(S){
   const ext=ic('i-ext').replace('class="ic"','class="ic ext"'), c=S.cloud||{};
   const t=[
@@ -904,6 +911,7 @@ function renderOpsCloud(S){
     `<button class="op" data-run="open_napcat">${ic('i-chat')}<b>打开 NapCat 后台${ext}</b><small>登 QQ 那个程序的设置页，口令自动带上</small></button>`,
     `<a class="op" href="${esc(S.backend)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}<b>她跟谁聊过什么${ext}</b><small>翻翻她的聊天记录</small></a>`,
     c.console?`<a class="op" href="${esc(c.console)}" target="_blank" rel="noopener">${ic('i-server')}<b>云控制台${ext}</b><small>看服务器、续费、重启服务器都在这</small></a>`:'',
+    watchRow(S),
   ];
   setHTML($('#ops'),t.join(''));
   $('#bkPath').textContent=S.paths.backend;
@@ -923,6 +931,7 @@ function renderOps(S){
     `<a class="op" href="${esc(S.backend)}/#/" target="_blank" rel="noopener">${ic('i-brain')}<b>打开 AstrBot 后台${ext}</b><small>她的详细设置都在这，第一次要登录</small></a>`,
     `<a class="op" href="${esc(pl.href)}" target="_blank" rel="noopener">${ic('i-chat')}<b>打开 ${esc(pn)} 后台${ext}</b><small>登 QQ 那个程序的设置页</small></a>`,
     `<a class="op" href="${esc(S.backend)}/#/conversation" target="_blank" rel="noopener">${ic('i-msgs')}<b>她跟谁聊过什么${ext}</b><small>翻翻她的聊天记录</small></a>`,
+    watchRow(S),
     g.can?`<div class="op game">${ic('i-game')}<div class="grow"><b>打游戏模式</b><small>${g.left?'上次开着它关了机，开机没恢复成：本机的语音和记忆还关着。点右边的开关恢复，大约半分钟。':g.on?'开着：本机的语音和记忆先关着，显卡和内存腾给游戏。她照样回消息，只打字、这段时间说的事不记。打完点右边的开关恢复。':'先关掉本机的语音和记忆，腾出显卡和内存。她照样聊天，只打字、不记新的事；重启电脑也会自己恢复。'}</small></div><button class="switch${gon?' on':''}" role="switch" aria-checked="${gon?'true':'false'}" aria-label="${gon?'打完了，恢复':'打游戏模式'}" title="${gon?'打完了，恢复':'开打游戏模式'}" data-run="${gon?'game_off':'game_on'}"></button></div>`:'',
   ];
   setHTML($('#ops'),t.join(''));
@@ -1013,7 +1022,7 @@ const ASKS=[
   ['i-wave','听懂更多方言','用大肥鱼的安装 Skill，帮我给大肥鱼装上语音识别的增强版，湖南话这类方言、歌词能认得更准：先告诉我要多下多大、会慢多少，我同意了再装。'],
   ['i-users','让她进我的 QQ 群','用大肥鱼的安装 Skill，让大肥鱼也在我的 QQ 群里聊，群号是{群号}。'],
   ['i-help','她不回话了','大肥鱼不回话了。用大肥鱼的安装 Skill 帮我查查是哪出了问题，先只看不改，查完告诉我打算怎么修。（工作台的「复制求助信息」存在桌面上的 txt 我一起发给你）'],
-  ['i-power','电脑关机她也在线','用大肥鱼的安装 Skill，帮我看看把大肥鱼搬到云服务器上要花多少钱、怎么弄，先别买，讲清楚利弊给我挑。'],
+  ['i-power','电脑关机她也在线','用大肥鱼的安装 Skill，帮我把这台电脑上的大肥鱼搬到云服务器上（记忆、人设、表情包一起搬）：先讲清楚利弊和要花多少钱，我还没买的话帮我挑，我回「搬」了再动。'],
   ['i-chat','QQ 升级后先换成 NapCat','用大肥鱼的安装 Skill，QQ 升级后 SnowLuma 暂时用不了，帮我先换成 NapCat；等 SnowLuma 跟上了再告诉我怎么换回来。'],
   ['i-archive','用备份还原','用大肥鱼的安装 Skill，用桌面上的备份{=大肥鱼备份-xxxx.zip}还原大肥鱼：先列出要动哪些东西，我确认了再动。'],
   ['i-x','卸载大肥鱼','用大肥鱼的安装 Skill，帮我把大肥鱼卸干净：先列清单给我看，问我要不要先备份，我回「确认」了再删。'],
@@ -1128,7 +1137,7 @@ async function waitRestart(){
 }
 async function poll(){
   clearTimeout(pollT);
-  try{ const s=await api('/api/status'); fails=0; render(s); }
+  try{ const s=await api('/api/status'); fails=0; render(s); if(OPEN_DO){ const d=OPEN_DO; OPEN_DO=''; runNamed(d); } }
   catch(e){ fails++; if(restartAt&&Date.now()-restartAt<45000){} else if(e.code===401||!TOKEN) showDown('token'); else if(fails>=2||!S) showDown('down'); }
   pollT=setTimeout(poll,10000);
 }

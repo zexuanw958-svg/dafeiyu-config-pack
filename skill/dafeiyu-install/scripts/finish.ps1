@@ -13,6 +13,7 @@ function New-Lnk([string]$Path, [string]$Target, [string]$WorkDir, [int]$Style, 
 function Copy-Workbench {
     # 工作台：tools\workbench\server.py 是本机小服务，只听 127.0.0.1；「更新」页靠 skill-version.json（现在是哪一版）和 skill-home.txt（Skill 放在哪，只记技能文件夹里的）
     New-Item -ItemType Directory -Force "$Dir\tools\workbench" | Out-Null
+    foreach ($f in 'backend_state.py','common.ps1','autostart.ps1','qq_watch.py','qq-toast.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
     Copy-Item "$PSScriptRoot\workbench\*" "$Dir\tools\workbench\" -Recurse -Force
     $skillHome = Split-Path $PSScriptRoot
     if (Test-Path "$skillHome\version.json") { Copy-Item "$skillHome\version.json" "$Dir\tools\skill-version.json" -Force }
@@ -26,19 +27,8 @@ $cloudTxt = "$Dir\private\cloud.txt"
 $isCloud = (Test-Path $cloudTxt) -and (Select-String -Path $cloudTxt -Pattern '^\s*(host|ip)\s*[:：]\s*\S' -Quiet) -and
            -not (Test-Path "$Dir\start-astrbot.cmd") -and -not (Test-Path "$Dir\astrbot\data")
 if ($isCloud) {
-    if (-not (Test-Path "$Dir\python\pythonw.exe")) {
-        $zip = "$Dir\downloads\python-3.12.10-embed-amd64.zip"
-        $urls = @('https://mirrors.huaweicloud.com/python/3.12.10/python-3.12.10-embed-amd64.zip',
-                  'https://mirrors.aliyun.com/python-release/windows/python-3.12.10-embed-amd64.zip',
-                  'https://registry.npmmirror.com/-/binary/python/3.12.10/python-3.12.10-embed-amd64.zip',
-                  'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip')
-        try {
-            Get-File -Urls $urls -OutFile $zip -MinBytes 11133606 -Sha256 '4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3' -ExpectedBytes 11133606 | Out-Null
-            Expand-Archive -LiteralPath $zip -DestinationPath "$Dir\python" -Force
-            Remove-Item -LiteralPath $zip -ErrorAction SilentlyContinue
-            Say '工作台用的 Python（便携版）放在工作目录的 python 文件夹'
-        } catch { Say "工作台用的 Python 没下下来（$($_.Exception.Message)）：网络好了再跑一次 finish.ps1，不然桌面的工作台打不开" }
-    }
+    $pyw = Get-PortablePython $Dir "$Dir\python"
+    if ($pyw) { Say '工作台用的 Python（便携版）放在工作目录的 python 文件夹' } else { Say '工作台用的 Python 没下下来：网络好了再跑一次 finish.ps1，不然桌面的工作台打不开' }
     Copy-Workbench
     $lnk = "$desktop\云端大肥鱼工作台.lnk"
     New-Lnk $lnk "$Dir\tools\workbench.cmd" "$Dir\tools" 7 '看云上的大肥鱼在不在、扫码登录、一键修、备份'
@@ -53,34 +43,33 @@ if ($isCloud) {
     }
     if ($moved) { Say ("桌面上以前的 {0} 挪进了工作目录的「旧版\桌面旧入口」（工作台都包了）" -f ($moved -join '、')) }
     if (-not (Test-Path "$Dir\python\pythonw.exe")) { exit 1 }
+    [IO.File]::WriteAllText("$Dir\tools\workbench-relogin.cmd", "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0workbench\open.ps1`" -Do relogin`r`n", (New-Object Text.UTF8Encoding($false)))
+    Set-QQWatch $Dir $pyw -Cloud
     Say '桌面放了「云端大肥鱼工作台」（双击开小窗口）；下一步照 云端.md 的 C10 打开它给他看'
     exit 0
 }
+
+# 共同探针和重登工具先放好，启动项统一复用它们。
+New-Item -ItemType Directory -Force "$Dir\tools" | Out-Null
+foreach ($f in 'common.ps1','backend_state.py','autostart.ps1','relogin-qq.ps1') { Copy-Item "$PSScriptRoot\$f" "$Dir\tools\$f" -Force }
 
 # 1 开机自启（WindowStyle 7 = 最小化）
 if (Test-Path "$Dir\start-astrbot.cmd") { New-Lnk "$startup\大肥鱼-AstrBot.lnk" "$Dir\start-astrbot.cmd" $Dir 7 '大肥鱼的大脑，别关'; Say '开机自启：AstrBot' }
 elseif ((Find-AstrDataDir $Dir) -match '\\core\\data$') {
     # 启动器装的：开机自启是启动器自己的设置（存在它自己的数据库里），我们不替他改，也不另加一份自启（两份会抢着开同一个实例）
-    if (Get-LauncherAutostart) { Say '开机自启：AstrBot 启动器已经开了「开机自启动」。再确认启动器里「退出时保留实例运行状态」也开着，实例才会跟着起来' }
+    if (Get-LauncherAutostart) { Say '开机自启：AstrBot 启动器已经开了「开机自启动」。再确认「退出时保留实例运行状态」已开；它只在启动器正常退出时记状态，不能保证每次开机恢复，没恢复就在启动器点实例的「启动」' }
     else {
         Say '开机自启：AstrBot 是启动器装的，要他自己在启动器里点（告诉他在哪，这一步没做完就不算装好）：'
         Say '  打开 AstrBot 启动器，点最左边的「高级」，在「通用」那一栏打开三个开关：开机自启动、自启动后最小化到托盘、退出时保留实例运行状态'
         Say '  同一栏的「关闭窗口时」保持「最小化到系统托盘」：启动器一退出，大脑也跟着停（托盘图标别点退出）'
-        Say '  实例保持运行，重启一次电脑，看她自己上线就对了（工作台「开机自启」那一项会显示这次开机她几点起来的）'
+        Say '  「退出时保留实例运行状态」只在启动器正常退出时记状态。下次开机若只有启动器、没有实例，点实例的「启动」；QQ 工具会安静等着，不要另开一份实例'
     }
 } else { Say '没找到 start-astrbot.cmd，也没认出启动器的实例：AstrBot 的开机自启按他原来的装法自己设' }
 # 协议端只自启现在用的那一个（两个都开会抢同一个小号，互相挤下线）
 $proto = if (Test-Path "$Dir\private\protocol.txt") { "$(Get-Content -Raw "$Dir\private\protocol.txt")".Trim() } elseif ((Test-Path "$Dir\start-snowluma.cmd") -and -not (Test-Path "$Dir\start-napcat.cmd")) { 'snowluma' } else { 'napcat' }
-if ($proto -eq 'napcat' -and (Test-Path "$Dir\start-napcat.cmd")) {
-    Remove-Item "$startup\大肥鱼-SnowLuma.lnk" -ErrorAction SilentlyContinue
-    if (-not (Select-String -Path "$Dir\start-napcat.cmd" -Pattern 'NapCatWinBootMain\.exe \d+' -Quiet)) { Say '注意：start-napcat.cmd 还没带小号（connect-napcat.ps1 没跑完？），开机会出二维码，不会自动登' }
-    New-Lnk "$startup\大肥鱼-NapCat.lnk" "$Dir\start-napcat.cmd" $Dir 7 '帮大肥鱼登 QQ，别关'; Say '开机自启：NapCat（快速登录，一般不用扫码）'
-}
-if ($proto -eq 'snowluma' -and (Test-Path "$Dir\start-snowluma.cmd")) {
-    Remove-Item "$startup\大肥鱼-NapCat.lnk" -ErrorAction SilentlyContinue
-    New-Lnk "$startup\大肥鱼-SnowLuma.lnk" "$Dir\start-snowluma.cmd" $Dir 7 '帮大肥鱼登 QQ（挂在桌面 QQ 上），别关'
-    Say '开机自启：SnowLuma。桌面 QQ 也要开机自动登小号：请他在 QQ 登录窗口勾「自动登录」，QQ 设置里打开「开机自动启动」（让他自己点，告诉他在哪）'
-}
+if (Test-Path "$Dir\start-$proto.cmd") { Set-QQAutostart $Dir $proto; Say '开机自启：登 QQ 的程序会隐藏等待网络和大脑，再尝试登录' }
+if ($proto -eq 'snowluma') { Say '桌面 QQ 的自动启动、自动登录小号仍要在 QQ 里自己开启；不会替你重启桌面 QQ' }
+if ($proto -eq 'napcat' -and (Test-Path "$Dir\start-napcat.cmd") -and -not (Select-String -Path "$Dir\start-napcat.cmd" -Pattern 'NapCatWinBootMain\.exe \d+' -Quiet)) { Say '注意：快速登录脚本还没带小号。先跑完 connect-napcat.ps1，否则开机仍需扫码' }
 # Ollama 开机只起服务、不开托盘程序（托盘程序每次启动都弹聊天窗口）；同名的 Ollama.lnk（安装包自己加的、旧版指向托盘程序的）一并换掉
 $ollamaCli = @("$env:LOCALAPPDATA\Programs\Ollama\ollama.exe", "$Dir\Ollama\ollama.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($ollamaCli) { New-Lnk "$startup\Ollama.lnk" "$env:SystemRoot\System32\conhost.exe" (Split-Path $ollamaCli) 7 '大肥鱼的记忆' "--headless `"$ollamaCli`" serve"; Say '开机自启：Ollama（记忆，后台跑、不出窗口）' }
@@ -110,4 +99,11 @@ foreach ($f in 'workbench.ps1', 'common.ps1', 'backup.ps1', 'diag.ps1', 'import-
 New-Lnk "$desktop\大肥鱼工作台.lnk" "$Dir\tools\workbench.cmd" "$Dir\tools" 7 '看大肥鱼在不在、一键修、补装、备份'
 if (Test-Path "$Dir\tools\workbench\dafeiyu.ico") { $l = $ws.CreateShortcut("$desktop\大肥鱼工作台.lnk"); $l.IconLocation = "$Dir\tools\workbench\dafeiyu.ico,0"; $l.Save() }
 & "$Dir\tools\workbench.ps1" -Dir $Dir -NoOpen   # 顺手生成兜底静态页
+# 掉线提醒：便携版 Python 下不下来就借 AstrBot 自带的（升级 AstrBot 前要先退出它）
+#   一键更新只给收尾 3 分钟：没有便携版就先用 AstrBot 的放上，再去下，下载慢被掐断也不至于没提醒
+$pyw = if (Test-Path "$Dir\tools\python\pythonw.exe") { "$Dir\tools\python\pythonw.exe" } else { '' }
+if (-not $pyw) { $ap = Find-AstrPython $Dir; if ($ap -and (Test-Path (Join-Path (Split-Path $ap) 'pythonw.exe'))) { $pyw = Join-Path (Split-Path $ap) 'pythonw.exe' } }
+if ($pyw) { Set-QQWatch $Dir $pyw }
+$own = Get-PortablePython $Dir "$Dir\tools\python"
+if ($own -and $own -ne $pyw) { Set-QQWatch $Dir $own } elseif (-not $own -and -not $pyw) { Set-QQWatch $Dir '' }
 Say '桌面放了「大肥鱼工作台」（双击开小窗口，不用浏览器地址栏）；下一步照 收尾-自启和掉线.md 的 8.3 打开它给他看'

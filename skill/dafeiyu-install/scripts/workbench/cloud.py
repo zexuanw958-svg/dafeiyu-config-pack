@@ -375,6 +375,7 @@ def base_status(items, d, connecting=False, err=None):
         "versions": versions, "answers": {"memory": a.get("memory", ""), "voice": a.get("voice", ""), "video": "1" if a.get("video") == "1" else ""},
         "game": {"on": False, "since": 0, "can": False, "left": False},
         "paths": {"backend": str(S.DIR / "private" / "cloud-backend.txt"), "private": str(S.DIR / "private")},
+        "watch": S.watch_info(),
         "group_reply": d.get("group_reply", "off"), "meme_freq": d.get("meme_freq", ""), "voice_freq": d.get("voice_freq", ""),
         "cloud": {"where": w, "dir": c["dir"], "console": console_url(), "expire": c["expire"], "connecting": connecting,
                   "err": err.code if err else "", "quick": bool(((cc.get("napcat") or {}).get("account"))), "at": SNAP["pc_at"]},
@@ -1184,4 +1185,5 @@ ACTIONS = {
     "set_expire": ("expire", "记到期日", lambda j, b: act_set_expire(j, b.get("date"))),
     "open_napcat": ("napweb", "打开 NapCat 后台", lambda j, b: act_open_napcat(j)),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: S.act_skill_update(j)),
+    "qq_watch": ("qqwatch", "掉线提醒", lambda j, b: S.act_qq_watch(j, str(b.get("mode", "")))),
 }

@@ -52,6 +52,7 @@ Say ('要删的（工作目录 {0} 里，共 {1:N1} GB）：' -f $Dir, ($total /
 foreach ($p in $inDir) { Say ('  {0}（{1:N0} MB）' -f (Split-Path $p -Leaf), ((Size $p) / 1MB)) }
 if ($lnks) { Say "快捷方式：$(($lnks | ForEach-Object { Split-Path $_ -Leaf }) -join '、')（启动文件夹和桌面上的）" }
 if ($tasks) { Say "后台启动用的计划任务：$($tasks -join '、')" }
+Say '这一套掉线提醒在系统里登记的点击入口（当前用户的注册表）也一起清掉；另一套还在用的留着'
 if ($envHit) { Say "环境变量 OLLAMA_MODELS（指向 $envModels）" }
 if ($ollamaOurs) { Say 'Ollama（装在工作目录里的，用它自己的卸载程序卸）' }
 elseif ($ollamaOther) { Say "Ollama 装在默认位置（$(Split-Path $ollamaOther)，可能是他自己装的、别的程序也在用），不卸$(if ($RemoveOllamaModel) { '，只删 bge-m3 模型' } else { '；我们下的 bge-m3 模型约 1.1 GB，不要了加 -RemoveOllamaModel' })" }
@@ -75,7 +76,7 @@ if ($petOn) {
 Say '先停掉工作目录里在跑的程序'
 Stop-UnderDir $Dir
 # 启动器装的 AstrBot，工作台小服务用的 Python 不在工作目录里，按命令行再停一下
-Get-CimInstance Win32_Process | Where-Object { "$($_.CommandLine)".IndexOf("$Dir\tools\workbench\server.py", [StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+Get-CimInstance Win32_Process | Where-Object { $l = "$($_.CommandLine)"; $l.IndexOf("$Dir\tools\workbench\server.py", [StringComparison]::OrdinalIgnoreCase) -ge 0 -or $l.IndexOf("$Dir\tools\qq_watch.py", [StringComparison]::OrdinalIgnoreCase) -ge 0 } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep 3
 if ($Backup) {
@@ -120,6 +121,15 @@ foreach ($p in @($lnks) + @($inDir)) {
     if ($rc -ne 0 -or (Test-Path -LiteralPath $p)) { [void]$fail.Add($p) }
 }
 foreach ($t in $tasks) { & schtasks.exe /delete /tn $t /f 2>&1 | Out-Null }
+# 掉线提醒的登记：只删指向这个工作目录的点击入口（搬上云后卸本机那套，云端那套的通知还要能点）；都没了才删通知名字
+$qqOther = 0
+foreach ($k in 'dafeiyu-relogin', 'dafeiyu-cloud-relogin') {
+    $key = "HKCU:\Software\Classes\$k"
+    $cmd = "$((Get-ItemProperty "$key\shell\open\command" -ErrorAction SilentlyContinue).'(default)')"
+    if (-not $cmd) { continue }
+    if ($cmd.IndexOf("$Dir\", [StringComparison]::OrdinalIgnoreCase) -ge 0) { Remove-Item $key -Recurse -Force -ErrorAction SilentlyContinue } else { $qqOther++ }
+}
+if (-not $qqOther) { Remove-Item 'HKCU:\Software\Classes\AppUserModelId\Dafeiyu.QQWatch' -Recurse -Force -ErrorAction SilentlyContinue }
 if ($envHit) { [Environment]::SetEnvironmentVariable('OLLAMA_MODELS', $null, 'User'); [Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', $null, 'User') }
 if ($wdHit) { Remove-Item $wdFile -Force -ErrorAction SilentlyContinue; Remove-Item "$env:LOCALAPPDATA\dafeiyu" -ErrorAction SilentlyContinue }
 if (-not (Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $Dir -Force -ErrorAction SilentlyContinue }   # 空文件夹直接删

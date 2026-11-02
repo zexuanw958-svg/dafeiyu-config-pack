@@ -3,13 +3,13 @@ name: dafeiyu-install
 description: 在 Windows 10/11 上从零把一个 QQ 小号做成「大肥鱼」聊天机器人：AstrBot 当大脑、NapCat 或 SnowLuma 登 QQ（两个都能全自动装）、DeepSeek 当模型，导入大肥鱼配置包，可选长期记忆、语音（Breeze 在线版、豆包或本机 Breeze）、看图看视频、换成自己的角色；装在哪个盘由用户挑；也能从这台 Windows 经 SSH 装到云服务器上，帮着挑服务器配置。用户说「帮我装大肥鱼」「把 DeepSeek 养进 QQ」「装个 QQ 聊天机器人」「把机器人换成我自己的角色」「给她换个声音」「换成 Breeze 在线版」「让她能看视频」「她看不懂图」「装到云服务器上」「帮我看看这台服务器够不够」「换成 SnowLuma」「让桌宠也变成她」时使用。观众的电脑要是 Windows，不支持 macOS。
 ---
 
-# 帮观众装大肥鱼（v0.4.4，2026-10-30）
+# 帮观众装大肥鱼（v0.5.0，2026-11-02）
 
 你在帮一个可能完全不懂电脑的人，在他自己的 Windows 电脑上装一个 QQ 聊天机器人。整套流程以两次真机代部署、Vol.04 教程和 10-27、10-28 干净账户实测为准，细节在 `references/`。
 
 **这一版的原则**：会影响结果的事都问他，每个选项的好处和缺点都摆出来，再说「拿不准就选哪个、为什么」。说明的责任在你，决定权在他。他一开口就说了的（「装 D 盘」「我要 SnowLuma」），对应那一问跳过，复述时标「按你说的」。
 
-**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、群里回复时 @ 不 @、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」；装在云服务器上的只放「云端大肥鱼工作台」）、`setup-pet.ps1`（可选：DSH 的桌宠 dsh-pet 也变成她，见 `references/桌宠.md`）、`workbench\`（工作台本体：本机小服务加一个小窗口；`cloud.py`、`cloud_remote.py` 是云端模式，经 `ssh` 看、修服务器上那套）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：只读体检，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
+**能用现成脚本的步骤就用脚本，别自己现编命令。** 本 Skill 的 `scripts/` 里有：`probe.ps1`（体检）、`install-astrbot.ps1`（装 AstrBot）、`astr_setup.py`（接 DeepSeek、建平台、白名单、群里回复时 @ 不 @、看状态和日志）、`install-napcat.ps1` + `connect-napcat.ps1`（NapCat）、`install-snowluma.ps1` + `connect-snowluma.ps1`（SnowLuma；没装桌面 QQ 时先跑 `install-qq.ps1`）、`install-ollama.ps1`（本机记忆）、`install-ffmpeg.ps1`、`install-asr.ps1`（看视频；`-Plus` 加装听方言、听歌词的增强版）、`import-pack.ps1`（一块一块导入配置包）、`finish.ps1`（开机自启、掉线自救、桌面「大肥鱼工作台」；装在云服务器上的只放「云端大肥鱼工作台」）、`setup-pet.ps1`（可选：DSH 的桌宠 dsh-pet 也变成她，见 `references/桌宠.md`）、`workbench\`（工作台本体：本机小服务加一个小窗口；`cloud.py`、`cloud_remote.py` 是云端模式，经 `ssh` 看、修服务器上那套）、`workbench.ps1`（没有 Python 时的兜底静态页）、`diag.ps1`（「复制求助信息」：体检，按共同探针校正过期后台端口并留备份，打码后存到桌面）、`backup.ps1` + `restore.ps1` + `uninstall.ps1`（备份、换电脑还原、卸载）、`stop-instance.ps1`（另装一套时关旧的、以后换回来）、`trust-folder.ps1`（杀毒软件拿走文件时，把工作目录加进 Windows 自带杀毒的排除项；别家杀毒见 `references/杀毒软件.md`）。`backend_state.py` 是工作台、PowerShell 和桌宠共用的大脑探针，`autostart.ps1` 管当前用户的 QQ 启动项；不要各自另写端口判断。下面说的 `<S>` 就是这个 `scripts` 文件夹的完整路径，`<工作目录>` 是第 1 步他挑的文件夹。脚本可以重复跑，做过的会跳过；报错先看最后几行，再查 `references/坑.md`。
 
 ## 说话方式（对观众）
 
@@ -246,7 +246,7 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 | 5 | 让他把大号粘进 `private\owner-qq.txt`；问他要不要让她进群，要的话先用大号把小号拉进群，再把群号（群资料里那串数字）粘进 `private\group.txt`，接着问「她在群里回谁，要不要先 @ 那个人？A. @（看得出她在回谁）B. 不 @」，照他选的跑 `astr_setup.py ... group-reply mention` 或 `off`（导入配置包不动这一项，以后在工作台改）。然后 `astr_setup.py ... whitelist`；然后选 A 的跑 `connect-napcat.ps1 -Dir <工作目录>`，选 B 的跑 `connect-snowluma.ps1 -Dir <工作目录>`，等登录完成、接上 AstrBot | 同上两份 + 基础那份第 5 节 |
 | 6 | 先过一遍「能聊」：他用大号私聊小号「在吗」，有回复再往下。**马上**用导入工具跑 `--only core`（几秒，只改本机设置）让她变成大肥鱼，再跑 `astr_setup.py greet` 让她**主动给大号发一句招呼**（换了自己角色的，你按角色写一句传进去）；叫他看手机，先回 `/reset`（清掉刚才默认助手的那几句），再随便聊一句，语气对了，主路就算完成。第 1 步选了「只拿几样」的：不跑 core、不跑 greet，直接到第 7 步 | 基础那份「第一次对话」、`references/导入配置包.md` 7.3 |
 | 7 | 加功能，**一项一项来**（见下面「加功能的规矩」）：导入工具 `--only plugins` → 选了看视频的 `install-ffmpeg.ps1`、`install-asr.ps1`（5C 加 `-Plus`）再 `--only video` → 本机记忆 `install-ollama.ps1` 再 `--only memory` → 语音（本机 Breeze 先装模型，在线版不用）再 `--only voice` → 表情包 `--only memes` 放后台跑、每半分钟转述一次进度 | `references/记忆.md`、`references/语音-豆包.md`、`references/语音-Breeze.md`、`references/语音-Breeze在线.md`、`references/角色包.md`、`references/看图看视频.md`、`references/导入配置包.md` |
-| 8 | `finish.ps1 -Dir <工作目录>`：开机自启、桌面掉线自救工具、桌面「大肥鱼工作台」；打开工作台给他看。启动器装的大脑，脚本会打出启动器里要开的三个开关，带他点完才算这步做完 | `references/收尾-自启和掉线.md` |
+| 8 | `finish.ps1 -Dir <工作目录>`：开机自启、桌面掉线自救工具、桌面「大肥鱼工作台」；打开工作台给他看。启动器装的大脑，带他开启动器里的三个开关，并说明实例没有恢复时要点实例的「启动」；QQ 会隐藏等大脑，不能把设好开关说成已经验证每次开机上线 | `references/收尾-自启和掉线.md` |
 | 9 | 验收 | 下面「验收」一节 |
 
 第 7 步选了 Breeze 在线版（问 ③ 的 D，导入 `voice="5"`）时，直接读 `references/语音-Breeze在线.md`：不用安装本机语音模型，拿到 key 和音色后只跑 `-Only voice`。云端也能用。
@@ -277,7 +277,7 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 6. 私聊发一张图，问「图里是什么」；选了看视频的，再发一段 10–30 秒的视频（`看图看视频.md`「验收」）。
 7. 掉线自救：选 A 的关掉 NapCat 窗口，双击桌面的「大肥鱼掉线-双击扫码」，能自己登回来（或弹码扫一下）；选 B 的双击桌面的「大肥鱼掉线-双击重登」（或在工作台点「重新登 QQ」）：它会把 SnowLuma 和桌面 QQ 重新打开，他在 QQ 窗口里点登录或扫码。
 
-全部通过，跟他说一句完事了（只拿几样的说「〔他的角色名〕还是原来的她，新加了：……」，别说「她已经是大肥鱼了」），再提醒几件事：DeepSeek Harness 的权限记得切回「工作区可写」；电脑开着她才在线；启动器装的大脑，启动器里「开机自启动」那三个开关开了没有（没开，重启电脑后她不会回来），托盘里的启动器别点退出；他选了不开白名单的，再说一句「谁 @ 她都能用，花的是你的 DeepSeek 余额，想关随时说」；小号偶尔被 QQ 踢下线是正常的，桌面工作台里点一下就能重新登；选了本机语音或记忆的，打游戏前在工作台点「打游戏模式」，打完点恢复（`references/记忆.md`「对电脑的影响、打游戏」）；后台密码在 `<工作目录>\private\backend.txt`，想改成自己记得住的，改完把新密码写回这个文件。没装上的项，再说一遍怎么补。体检报了装着桌宠插件 dsh-pet、还没接成她（`agents.dshPet.installed` 真、`linked` 假）的，最后问一句要不要让桌宠也变成她（话术和代价在 `references/桌宠.md`「什么时候提」）；没装 dsh-pet 的不提，也不劝他装。选了群的再说一句：群里她主要回 @ 她的消息，偶尔自己插话；群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句；「回谁要不要 @ 那个人」以后在工作台「群里插话」下面改。
+全部通过，跟他说一句完事了（只拿几样的说「〔他的角色名〕还是原来的她，新加了：……」，别说「她已经是大肥鱼了」），再提醒几件事：DeepSeek Harness 的权限记得切回「工作区可写」；电脑开着她才在线；启动器装的大脑，启动器里的三个开关要开；实例状态只在启动器正常退出时记，下次开机没恢复就在启动器点实例的「启动」，QQ 会在后台等着；托盘里的启动器别点退出；他选了不开白名单的，再说一句「谁 @ 她都能用，花的是你的 DeepSeek 余额，想关随时说」；小号偶尔被 QQ 踢下线是正常的，桌面工作台里点一下就能重新登；选了本机语音或记忆的，打游戏前在工作台点「打游戏模式」，打完点恢复（`references/记忆.md`「对电脑的影响、打游戏」）；后台密码在 `<工作目录>\private\backend.txt`，想改成自己记得住的，改完把新密码写回这个文件。没装上的项，再说一遍怎么补。体检报了装着桌宠插件 dsh-pet、还没接成她（`agents.dshPet.installed` 真、`linked` 假）的，最后问一句要不要让桌宠也变成她（话术和代价在 `references/桌宠.md`「什么时候提」）；没装 dsh-pet 的不提，也不劝他装。选了群的再说一句：群里她主要回 @ 她的消息，偶尔自己插话；群里发语音没法同时 @ 她，想让她回那条语音，发完再 @ 她一句；「回谁要不要 @ 那个人」以后在工作台「群里插话」下面改。
 
 ## 装完以后他回来找你
 
@@ -291,6 +291,8 @@ DeepSeek key、大号 QQ 号、要不要进群，**到用的那一步再要**（
 - 「换成 Breeze 在线版」「没有显卡也要发语音」：读 `references/语音-Breeze在线.md`，讲清按字扣积分，注册、可选兑码、建 key 存进 `private`、挑音色，只跑 `-Only voice`；原来的豆包或本机语音会停用，不卸载。在线版想换音色，改回答文件的 `breeze_voice_id` 后只重导语音；想捏新音色，先出候选，听过点头再保存。
 - 「语音发太多了」「多发点语音」：让他在桌面工作台「发语音」下面点少、中、多（大约七条一条、三条一条、三条两条），当场生效。工作台打不开的，在后台「配置文件 → 语音」改「触发概率」；用豆包整条语音的，提供商里的 `seed_audio_reply_probability` 也改成一样的数；Breeze 在线版改 `breeze_online_reply_probability`（工作台会一起改），总开关保持关闭，由插件整条合成。
 - 「让桌宠也变成她」「桌宠也要是大肥鱼」：读 `references/桌宠.md`（他没装 dsh-pet 就告诉他先在 DSH 的插件管理里装，不替他装）。「桌宠变回原来那样」：`setup-pet.ps1 -Dir <工作目录> -Remove`。
+- 「搬到云上」「电脑关机她也在线」「不想一直开着电脑」（她已经装在这台电脑上）：读 `references/搬到云上.md`，记忆、人设、表情包一起搬，不用从头装。
+- 「掉线了能不能提醒我」「别弹掉线通知了」：掉线提醒已经开着，开关和「试一下」在工作台「操作」页，见 `收尾-自启和掉线.md` 8.2。老版本一键更新后就有。
 - 「备份一下」「换电脑了」「重装系统前」「不想要了」「卸干净」：读 `references/备份、换电脑和卸载.md`。卸载一定先列清单、他回「确认」才删。
 
 ## 别做的事

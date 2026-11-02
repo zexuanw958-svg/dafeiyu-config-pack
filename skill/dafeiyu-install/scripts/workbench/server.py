@@ -51,7 +51,7 @@ if sys.stdout is None:  # pythonw 没有控制台
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-VERSION = "1.3.2"
+VERSION = "1.4.0"
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:  # 便携版 Python（python312._pth）不把脚本所在的文件夹放进 sys.path
     sys.path.insert(0, str(HERE))
@@ -59,6 +59,9 @@ import cloud  # noqa: E402  云端模式
 ASSETS = HERE / "assets"  # 页面用的图和字体；只发这个文件夹里、下面这几种扩展名的文件
 ASSET_TYPES = {".webp": "image/webp", ".woff2": "font/woff2"}
 SCRIPTS = HERE.parent  # Skill 里是 scripts\，装好后是 <工作目录>\tools\（finish.ps1 把要用的 .ps1 一起拷过去）
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+import backend_state  # noqa: E402  端口、实例、QQ 连接的共同探针
 IS_WIN = os.name == "nt"
 NO_WINDOW = 0x08000000 if IS_WIN else 0
 DEFAULT_PORT = 26185
@@ -316,8 +319,7 @@ def listening(port):
 
 
 def qq_online():
-    _, est = net_snapshot()
-    return any(r == 6199 for _, r, _ in est)
+    return brain_state()["online"]
 
 
 def process_list():
@@ -488,13 +490,13 @@ def boot_time():
 def wait_until(fn, seconds, job=None, p0=None, p1=None, step=None):
     t0 = now()
     while now() - t0 < seconds:
-        drop_cache("net", "procs")
+        drop_cache("net", "procs", "backend")
         if fn():
             return True
         if job is not None and p0 is not None:
             job.set(step, p0 + (p1 - p0) * min(1, (now() - t0) / seconds))
         time.sleep(2)
-    drop_cache("net", "procs")
+    drop_cache("net", "procs", "backend")
     return bool(fn())
 
 
@@ -514,31 +516,31 @@ def protocol():
     return "napcat"
 
 
+def brain_state():
+    return cached("backend", 2, lambda: backend_state.resolve(DIR))
+
+
 def backend_port():
-    u = read_kv(DIR / "private" / "backend.txt").get("url", "")
-    m = re.search(r":(\d+)", u.split("//", 1)[-1])
-    return int(m.group(1)) if m else 6185
+    return brain_state()["port"]
 
 
 def launcher_instance():
-    """启动器装的 AstrBot：找端口对得上的那个实例文件夹。"""
-    roots = []
-    j = read_json(Path(os.environ.get("APPDATA", "")) / "com.github.raven95676.astrbot-launcher" / ".data-dir.json", {}) or {}
-    if j.get("data_dir"):
-        roots.append(Path(j["data_dir"]))
-    roots.append(Path(os.environ.get("USERPROFILE", "")) / ".astrbot_launcher")
-    cands = []
-    for r in roots:
+    inst = brain_state()["instance"]
+    return Path(inst) if inst else None
+
+
+def qq_startup_state():
+    def get():
+        env = dict(os.environ, DFY_DIR=str(DIR), DFY_SCRIPTS=str(SCRIPTS), DFY_PROTO=protocol())
+        command = r'''[Console]::OutputEncoding=[Text.Encoding]::UTF8
+. "$env:DFY_SCRIPTS\common.ps1"
+@{duplicates=@(Get-NapCatStartup $env:DFY_DIR);ready=(Test-QQAutostart $env:DFY_DIR $env:DFY_PROTO)} | ConvertTo-Json -Depth 5 -Compress'''
+        code, out = run(["powershell.exe", "-NoProfile", "-Command", command], timeout=40, env=env)
         try:
-            cands += [d for d in (r / "instances").iterdir() if (d / "core" / "data" / "cmd_config.json").exists()]
-        except Exception:  # noqa: BLE001
-            pass
-    want = backend_port()
-    for c in cands:
-        cfg = read_json(c / "core" / "data" / "cmd_config.json", {}) or {}
-        if (cfg.get("dashboard") or {}).get("port") == want:
-            return c
-    return cands[0] if cands else None
+            return json.loads(out) if code == 0 else {"ready": False, "duplicates": []}
+        except ValueError:
+            return {"ready": False, "duplicates": []}
+    return cached("qq_startup", 30, get) if IS_WIN else {"ready": True, "duplicates": []}
 
 
 def data_dir():
@@ -1420,7 +1422,7 @@ def collect_status():
     a = answers()
     proto = protocol()
     port = backend_port()
-    base = f"http://127.0.0.1:{port}"
+    base = brain_state()["url"]
     cli = is_cli_install()
     procs = process_list()
     items = []
@@ -1430,23 +1432,23 @@ def collect_status():
         return any(j["group"] == group and j["state"] == "running" for j in jobs)
 
     # 1 大脑
-    up = listening(port)
-    lp = net_snapshot()[0].get(port)
-    started = next((p["create"] for p in procs if p["pid"] == lp), 0) if up else 0
+    bs = brain_state()
+    up = bs["state"] == "up"
+    started = bs["started"]
     astr_procs = [p for p in procs if under(p["exe"], DIR / "uv") and p["name"].lower() == "astrbot.exe"]
     if up:
         brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "ok", f"开着，已连续跑了 {dur_text(now() - started)}。" if started else "开着。",
                      links=[{"label": "打开后台", "href": base + "/#/"}], extra={"since": started})
-    elif job_running("brain") or (astr_procs and now() - max(p["create"] for p in astr_procs) < 180):
+    elif job_running("brain") or bs["state"] == "starting" or (astr_procs and now() - max(p["create"] for p in astr_procs) < 180):
         brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "busy", "正在起来，大约半分钟到一分钟。")
-    elif astr_procs:
-        brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "bad", "程序开着，但后台一直没反应（卡住了）。重启一下就好。",
-                     fix={"action": "restart_astrbot", "label": "重启大脑"})
+    elif astr_procs or bs["state"] == "stuck":
+        brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "bad", ("程序开着，但后台一直没反应（卡住了）。重启一下就好。" if cli else "实例程序开着，但后台一直没反应。在 AstrBot 启动器里重启这个实例。"),
+                     fix={"action": "restart_astrbot", "label": "重启大脑"} if cli else None)
     elif cli:
         brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "bad", "没开，她现在回不了话。修复会把它打开，大约半分钟。",
                      fix={"action": "start_astrbot", "label": "一键修复"})
     else:
-        brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "bad", "没开，她现在回不了话。打开 AstrBot 启动器，点「启动」。")
+        brain = item("brain", "大脑 · AstrBot", "i-brain", "管聊天的总程序。", "bad", ("有多个实例，还没认准这个大脑。请 Agent 核对实例路径，不要另开一份。" if bs["ambiguous"] else ("启动器开着，但这个实例没开。在启动器里点这个实例的「启动」。" if bs["launcher_running"] else "打开 AstrBot 启动器，点这个实例的「启动」。启动器开着不等于实例开了。")))
     items.append(brain)
 
     # 2 登 QQ 的程序
@@ -1459,14 +1461,22 @@ def collect_status():
         pname, pwhat, proot = "NapCat", "帮她登上小号，用它自带的一份 QQ。", DIR / "NapCat"
         plink = {"label": "NapCat 后台", "href": "http://127.0.0.1:6099/webui"}
     prun = bool(procs_under(proot))
+    boot_qq = read_json(DIR / "logs" / "qq-autostart.json", {}) or {}
+    boot_active = boot_qq.get("pid") in {p["pid"] for p in procs} and "relogin-qq.ps1" in cmdline(boot_qq["pid"]).lower()
     btns = [{"label": "重新登", "action": "relogin"}, {"label": "重启它", "action": "restart_qq"}]
     suspect = proto == "snowluma" and cached("sl_suspect", 30, snowluma_upgrade_suspect)
     if online:
         qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "ok", f"小号 {bot} 在线。" if bot else "小号在线。", links=[plink], btns=btns)
+    elif boot_active and not up:
+        qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "busy", "开机登录正在后台等大脑。先照「大脑」那项操作，不用关掉重开。", links=[plink])
     elif job_running("qq"):
         qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "busy", "正在重新登，稍等。", links=[plink])
     elif brain["state"] != "ok":
         qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "bad", "大脑没开，小号也连不上她。先把大脑开起来。", links=[plink], btns=btns[:1])
+    elif boot_active and boot_qq.get("state") in ("waiting-network", "logging-in", "retry-later"):
+        qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "busy", boot_qq.get("text") or "正在后台自动登录，不用再开一份。", links=[plink])
+    elif boot_active and boot_qq.get("state") == "scan":
+        qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "warn", "自动登录没成功，请用小号手机 QQ 扫已经打开的二维码。", links=[plink])
     elif not prun:
         qq = item("qq", f"登 QQ 的程序 · {pname}", "i-chat", pwhat, "bad", f"{pname} 没开着，小号连不上她。点「重新登」会把它打开。",
                   fix={"action": "relogin", "label": "重新登"}, links=[plink], btns=btns[1:])
@@ -1594,30 +1604,26 @@ def collect_status():
             miss.append(label)
     if voice == "4" and not any("breeze" in n.lower() for n in lnks):
         miss.append("Breeze（语音）")
-    # 启动器装的大脑：开机自启在启动器里开（我们不替他改启动器的设置）。没开就提醒，开了也说一句实例要跟着起来还得开「退出时保留实例运行状态」
     la = None if cli else launcher_autostart()
     lnote = ""
-    if la is False:
-        lnote = "大脑（AstrBot 启动器）开机不会自己起来：打开启动器，点最左边「高级」，在「通用」里打开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」。启动器一退出大脑也会停，托盘图标别点退出。"
-    elif la:
-        lnote = "大脑跟着 AstrBot 启动器起来（启动器「高级 → 通用」里「退出时保留实例运行状态」要开着，实例才会跟着开；托盘图标别点退出）。"
+    if not cli:
+        lnote = "启动器里要开「开机自启动」「自启动后最小化到托盘」「退出时保留实例运行状态」。实例状态只在启动器正常退出时保存，不能保证关机时一定记住；开机后实例没恢复，就在启动器点这个实例的「启动」。QQ 会安静等着。"
     both = "大肥鱼-SnowLuma.lnk" in lnks and "大肥鱼-NapCat.lnk" in lnks
-    bt = boot_time()
-    boot = ""
-    if bt and started and 0 <= started - bt < 900:
-        boot = f"这次开机 {datetime.fromtimestamp(bt):%H:%M}，她 {datetime.fromtimestamp(started):%H:%M} 自己起来了。"
-    if both:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", "SnowLuma 和 NapCat 都设了开机自启，会抢同一个小号、互相挤下线。修复会只留现在用的那个。",
+    qs = qq_startup_state()
+    dups = qs.get("duplicates") or []
+    if both or dups:
+        names = "、".join(redact(x.get("Name", "旧入口")) for x in dups)
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", "有重复的登 QQ 启动项" + (f"：{names}" if names else "") + "，可能抢同一个小号。修复会移走或禁用旧入口，恢复资料留在工作目录的「旧版」里。",
                     fix={"action": "autostart_fix", "label": "一键修复"})
-    elif miss:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", f"开机后{'、'.join(miss)}不会自己起来。修复会把开机自启补上。" + (lnote if la is False else ""),
+    elif miss or not qs.get("ready"):
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", (f"开机后{'、'.join(miss)}不会自己起来。" if miss else "QQ 自启还是直接开程序的旧入口。") + "点「补上」，QQ 会隐藏等待网络和大脑，再尝试登录。" + lnote,
                     fix={"action": "autostart_fix", "label": "补上"})
-    elif la is False and not boot:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", lnote + "开好以后重启电脑看一眼，她自己上线就对了。")
+    elif not cli:
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "warn", lnote)
     else:
-        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "ok", boot or ("都设好了。" + lnote))
-        if proto == "snowluma":
-            auto["text"] += "桌面 QQ 要在它自己的设置里开「开机自动启动」、登录时勾「自动登录」。" if not boot else ""
+        auto = item("autostart", "开机自启", "i-power", "开机后她自己上线。", "ok", "入口已设。QQ 会隐藏等待网络和大脑，再尝试登录；自动登录失效才打开扫码页。")
+    if proto == "snowluma":
+        auto["text"] += "桌面 QQ 要在它自己的设置里开「开机自动启动」、登录时勾「自动登录」。"
     items.append(auto)
 
     # 8 表情包
@@ -1727,6 +1733,7 @@ def collect_status():
         "game": {"on": bool(gm), "since": (gm or {}).get("since", 0), "can": voice == "4" or mem == "1",
                  "left": not gm and bool((read_json(game_file(), {}) or {}).get("on"))},  # 开着打游戏模式重启了、开机没恢复成
         "paths": {"backend": str(DIR / "private" / "backend.txt"), "private": str(DIR / "private")},
+        "watch": watch_info(),
         "group_reply": group_reply_mode(),
         "meme_freq": meme_freq(),
         "voice_freq": voice_freq() if voice in ("1", "2", "3", "4", "5") else "",
@@ -1892,6 +1899,55 @@ def act_start_astrbot(job, restart=False):
     if qq_online():
         return job.done(True, "大脑重启好了，小号也连上了。" if restart else "大脑开好了，小号也连上了。")
     return job.done(True, ("大脑重启好了" if restart else "大脑开好了") + "，小号还没连上：等一小会儿，或者点「重新登」。")
+
+
+# ---------------------------------------------------------------- 掉线提醒（tools\qq_watch.py，本机和云端共用）
+
+def watch_info():
+    """给页面的状态。程序每 1～3 分钟写一次 logs\qq-watch.json，10 分钟没动静算没在跑。"""
+    st = read_json(DIR / "logs" / "qq-watch.json", {}) or {}
+    return {"can": (DIR / "tools" / "qq_watch.py").exists(), "on": not (DIR / "private" / "qq-watch-off.txt").exists(),
+            "running": now() - float(st.get("at") or 0) < 600, "state": st.get("state", ""), "note": st.get("note", "")}
+
+
+def start_watch():
+    """后台程序没在跑就起一份（它自己有锁，多起也只留一个）。"""
+    if watch_info()["running"]:
+        return True
+    for c in (DIR / "tools" / "python" / "pythonw.exe", DIR / "python" / "pythonw.exe", Path(sys.executable).with_name("pythonw.exe")):
+        if c.exists():
+            launch_exe(c, ["-X", "utf8", str(DIR / "tools" / "qq_watch.py"), "--dir", str(DIR)], cwd=tempfile.gettempdir(), hidden=True)
+            return True
+    return False
+
+
+def act_qq_watch(job, mode):
+    off = DIR / "private" / "qq-watch-off.txt"
+    if not (DIR / "tools" / "qq_watch.py").exists():
+        return job.done(False, "这一版还没放掉线提醒。到「更新」页点一键更新。")
+    if mode == "off":
+        off.parent.mkdir(parents=True, exist_ok=True)
+        off.write_text("关了掉线提醒。删掉这个文件就开回来。\n", encoding="utf-8")
+        return job.done(True, "掉线提醒关了。她掉线不会再弹通知，要自己开工作台看。")
+    if mode == "on":
+        try:
+            off.unlink()
+        except OSError:
+            pass
+        started = start_watch()
+        return job.done(started, "掉线提醒开了。" if started else "开关打开了，但后台程序没起来：没找到 pythonw。交给 Agent 重跑一下收尾那步。")
+    if mode == "test":
+        start_watch()
+        root = os.environ.get("SystemRoot", r"C:\Windows")
+        ps = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        try:
+            p = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(DIR / "tools" / "qq-toast.ps1"), "-Dir", str(DIR), "-Kind", "test"],
+                               capture_output=True, timeout=40, creationflags=NO_WINDOW)
+        except (OSError, subprocess.SubprocessError) as e:
+            return job.done(False, f"通知没弹出来（{type(e).__name__}）。")
+        msg = (p.stdout.decode("utf-8", "replace").strip().splitlines() or [""])[-1]
+        return job.done(p.returncode == 0, "看电脑右下角。点一下那条通知，就是掉线时的样子。" if p.returncode == 0 else (msg or "通知没弹出来。"))
+    return job.done(False, "没有这个选项")
 
 
 def act_relogin(job):
@@ -2239,18 +2295,13 @@ def act_restart_petbridge(job):
 
 
 AUTOSTART_PS = r"""
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 $Dir = $env:DFY_DIR; $proto = $env:DFY_PROTO; $mem = $env:DFY_MEM; $voice = $env:DFY_VOICE
+. "$env:DFY_SCRIPTS\common.ps1"
 $startup = [Environment]::GetFolderPath('Startup'); $ws = New-Object -ComObject WScript.Shell
 function L($p, $t, $w, $d, $a = '') { $l = $ws.CreateShortcut($p); $l.TargetPath = $t; $l.Arguments = $a; $l.WorkingDirectory = $w; $l.WindowStyle = 7; $l.Description = $d; $l.Save(); "ADDED $(Split-Path $p -Leaf)" }
 if ((Test-Path "$Dir\start-astrbot.cmd") -and -not (Test-Path "$startup\大肥鱼-AstrBot.lnk")) { L "$startup\大肥鱼-AstrBot.lnk" "$Dir\start-astrbot.cmd" $Dir '大肥鱼的大脑，别关' }
-if ($proto -eq 'snowluma') {
-  if (Test-Path "$startup\大肥鱼-NapCat.lnk") { Remove-Item "$startup\大肥鱼-NapCat.lnk"; 'REMOVED 大肥鱼-NapCat.lnk' }
-  if ((Test-Path "$Dir\start-snowluma.cmd") -and -not (Test-Path "$startup\大肥鱼-SnowLuma.lnk")) { L "$startup\大肥鱼-SnowLuma.lnk" "$Dir\start-snowluma.cmd" $Dir '帮大肥鱼登 QQ（挂在桌面 QQ 上），别关' }
-} else {
-  if (Test-Path "$startup\大肥鱼-SnowLuma.lnk") { Remove-Item "$startup\大肥鱼-SnowLuma.lnk"; 'REMOVED 大肥鱼-SnowLuma.lnk' }
-  if ((Test-Path "$Dir\start-napcat.cmd") -and -not (Test-Path "$startup\大肥鱼-NapCat.lnk")) { L "$startup\大肥鱼-NapCat.lnk" "$Dir\start-napcat.cmd" $Dir '帮大肥鱼登 QQ，别关' }
-}
+Set-QQAutostart $Dir $proto
 if ($mem -eq '1' -and -not (Test-Path "$startup\Ollama.lnk")) {
   $o = @("$env:LOCALAPPDATA\Programs\Ollama\ollama.exe", "$Dir\Ollama\ollama.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
   if ($o) { L "$startup\Ollama.lnk" "$env:SystemRoot\System32\conhost.exe" (Split-Path $o) '大肥鱼的记忆' "--headless `"$o`" serve" }
@@ -2268,14 +2319,20 @@ if ((Test-Path "$Dir\private\pet-key.txt") -and (Test-Path "$Dir\start-petbridge
 def act_autostart_fix(job):
     import base64
     a = answers()
-    env = dict(os.environ, DFY_DIR=str(DIR), DFY_PROTO=protocol(), DFY_MEM=a.get("memory", ""), DFY_VOICE=a.get("voice", ""))
+    env = dict(os.environ, DFY_DIR=str(DIR), DFY_PROTO=protocol(), DFY_MEM=a.get("memory", ""), DFY_VOICE=a.get("voice", ""), DFY_SCRIPTS=str(SCRIPTS))
     enc = base64.b64encode(AUTOSTART_PS.encode("utf-16-le")).decode()
     job.set("补开机自启……", 30)
     code, out = run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc], timeout=60, env=env)
     added = [ln.split(" ", 1)[1] for ln in out.splitlines() if ln.startswith(("ADDED ", "REMOVED "))]
-    if "DONE" not in out:
+    drop_cache("qq_startup")
+    if code != 0 or "DONE" not in out:
         return job.done(False, "没补上：" + redact(out.strip()[-160:]))
-    return job.done(True, ("补好了：" + "、".join(added) + "。下次开机她会自己起来。") if added else "本来就都设好了。")
+    note = "QQ 会隐藏等待网络和大脑，自动登录失效才出二维码。"
+    if not is_cli_install():
+        note += "启动器实例没有自动恢复时，仍需在启动器里点实例的「启动」。"
+    detail = "；".join(redact(ln) for ln in out.splitlines() if "恢复资料：" in ln or "入口已移到：" in ln)
+    return job.done(True, "开机入口已更新。" + note + detail)
+
 
 
 # ---------------------------------------------------------------- 更新安装 Skill 和工作台（只换文件，旧版先备份）
@@ -2478,6 +2535,7 @@ ACTIONS = {
     "meme_freq": ("memefreq", "表情包发多少", lambda j, b: act_meme_freq(j, str(b.get("level", "")))),
     "voice_freq": ("voicefreq", "语音发多少", lambda j, b: act_voice_freq(j, str(b.get("level", "")))),
     "skill_update": ("skillup", "更新安装 Skill", lambda j, b: act_skill_update(j)),
+    "qq_watch": ("qqwatch", "掉线提醒", lambda j, b: act_qq_watch(j, str(b.get("mode", "")))),
 }
 
 
@@ -2676,8 +2734,8 @@ def find_edge():
     return ""
 
 
-def open_window(port, token):
-    url = f"http://127.0.0.1:{port}/#t={token}"
+def open_window(port, token, do=""):
+    url = f"http://127.0.0.1:{port}/#t={token}" + (f"&do={do}" if do else "")
     edge = find_edge()
     if edge:
         try:
@@ -2719,6 +2777,7 @@ def main():
     ap.add_argument("--no-clipboard", action="store_true", help="测试用：复制求助信息时不动剪贴板")
     ap.add_argument("--takeover", action="store_true", help="工作台自己更新后重开用：等旧的退出、端口空出来，接着用同一个端口和 token")
     ap.add_argument("--game-off", action="store_true", help="开机自启用：打游戏模式没关就重启了，把语音、记忆开回来就退")
+    ap.add_argument("--do", default="", choices=["", "relogin"], help="打开后直接做这件事（云端的掉线通知点进来用）")
     OPTS = ap.parse_args()
     if OPTS.dir:
         DIR = Path(OPTS.dir).resolve()
@@ -2743,7 +2802,7 @@ def main():
     info = read_json(STATE / "server.json", {}) or {}
     if not OPTS.takeover and info.get("port") and info.get("token") and alive(info):
         if not OPTS.no_open:
-            open_window(info["port"], info["token"])
+            open_window(info["port"], info["token"], OPTS.do)
         return
 
     reuse = os.environ.pop("DFY_WB_TOKEN", "") if OPTS.takeover else ""
@@ -2764,7 +2823,7 @@ def main():
                     info = read_json(STATE / "server.json", {}) or {}
                     if info.get("port") and info.get("token") and alive(info):
                         if not OPTS.no_open:
-                            open_window(info["port"], info["token"])
+                            open_window(info["port"], info["token"], OPTS.do)
                         return
             continue
     if SERVER is None:
@@ -2783,7 +2842,7 @@ def main():
         background(check_balance)
     background(check_updates)
     if OPTS.open and not OPTS.no_open:
-        open_window(PORT, TOKEN)
+        open_window(PORT, TOKEN, OPTS.do)
     try:
         SERVER.serve_forever(poll_interval=1)
     finally:

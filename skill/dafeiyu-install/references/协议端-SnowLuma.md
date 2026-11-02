@@ -95,7 +95,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<S>\install-qq.ps1" -Dir <�
 
 ## 开机自启和掉线
 
-`connect-snowluma.ps1` 连上以后在 `private\protocol.txt` 写 `snowluma`。`finish.ps1` 看到它就把 SnowLuma 加进开机自启（同时去掉 NapCat 的，两个都开会抢同一个小号），桌面放「大肥鱼掉线-双击重登」。桌面 QQ 自己要设成开机启动、自动登录小号：QQ 登录窗口勾「自动登录」，QQ 设置里打开开机自启（让他自己点，你告诉他在哪）。重启电脑后能不能自己登上，待实测。
+`connect-snowluma.ps1` 连上以后在 `private\protocol.txt` 写 `snowluma`。`finish.ps1` 看到它就把 SnowLuma 加进开机自启（隐藏等网络和大脑，再启动 SnowLuma；NapCat 的旧入口移进工作目录「旧版」里，两份不能抢同一个小号），桌面放「大肥鱼掉线-双击重登」。桌面 QQ 自己要设成开机启动、自动登录小号：QQ 登录窗口勾「自动登录」，QQ 设置里打开开机自启（让他自己点，你告诉他在哪）。重启电脑后能不能自己登上，待实测。
 
 「大肥鱼掉线-双击重登」（`tools\relogin-qq.ps1` 的 SnowLuma 分支，10-28 在 ceshi 上测过「在线时直接退出」）：AstrBot 没开先开；SnowLuma 没开先开；这个用户的桌面 QQ 没开就打开；等 30 秒没连上就叫他在 QQ 窗口里登小号；一分钟后还没连上会重启一次 SnowLuma（它会重新挂到开着的 QQ 上，不动 QQ）；10 分钟还不行，看日志像是 QQ 升级了就提示看工作台。
 

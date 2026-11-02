@@ -86,7 +86,7 @@ if ($Remove) {
     $as = Find-Script 'astr_setup.py'
     if ($as) { & $py -X utf8 $as --dir $Dir pet-key remove 2>&1 | ForEach-Object { Say "  $_" } }
     else { Remove-Item "$Dir\private\pet-key.txt", "$Dir\private\pet-bridge-token.txt" -Force -ErrorAction SilentlyContinue; Say '  没找到 astr_setup.py：key 文件删了，后台「API 密钥」里那把「大肥鱼桌宠」请他自己删' }
-    foreach ($f in 'dafeiyu_pet_bridge.py', 'pet_config.py', 'pet-persona.txt') { if ($PSScriptRoot -ne $tools) { Remove-Item "$tools\$f" -Force -ErrorAction SilentlyContinue } }
+    foreach ($f in 'dafeiyu_pet_bridge.py', 'backend_state.py', 'pet_config.py', 'pet-persona.txt') { if ($PSScriptRoot -ne $tools) { Remove-Item "$tools\$f" -Force -ErrorAction SilentlyContinue } }
     Say '桌宠互通插件和记忆范围没动（QQ 里的她照旧，桌宠那边说过的话还在她的记忆里）'
     Say "RESULT pet=removed$(if (-not ($r -match 'RESULT dsh=reverted')) { ' reason=dsh-not-reverted next=DSH 那边没改回去：照 references/桌宠.md「拆掉」那节手动改' })"
     exit 0
@@ -114,7 +114,7 @@ $migrate = [bool]($imp | Where-Object { $_ -match 'MIGRATE private-memories' })
 
 # 3 桥：拷进 tools\（他删了 Skill 也能跑），写启动脚本，后台起来，开机自启
 New-Item -ItemType Directory -Force $tools, "$Dir\logs" | Out-Null
-foreach ($f in 'dafeiyu_pet_bridge.py', 'pet_config.py', 'pet-persona.txt') {
+foreach ($f in 'dafeiyu_pet_bridge.py', 'backend_state.py', 'pet_config.py', 'pet-persona.txt') {
     $s = Find-Script $f
     if ($s -and $s -ne "$tools\$f") { Copy-Item $s "$tools\$f" -Force }
 }

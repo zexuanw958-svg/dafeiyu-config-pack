@@ -22,6 +22,7 @@ key、口令、主人号只从文件读，不打印、不写日志；日志只�
   python -X utf8 dafeiyu_pet_bridge.py --dir C:\\dafeiyu --check     # 只查 AstrBot 和 key，不起服务；通了退出码 0
 """
 import argparse
+import backend_state
 import hmac
 import json
 import os
@@ -116,6 +117,22 @@ class Cfg:
 
     def __init__(self):
         self._files, self._cache = {}, {}
+        self.directory, self.fixed_astrbot = "", ""
+        self._backend_cache = (0, "")
+
+    @property
+    def astrbot(self):
+        if self.directory and not self.fixed_astrbot:
+            at, url = self._backend_cache
+            if time.monotonic() - at > 2:
+                url = backend_state.resolve(self.directory)["url"].rstrip("/")
+                self._backend_cache = (time.monotonic(), url)
+            return url
+        return self._astrbot
+
+    @astrbot.setter
+    def astrbot(self, value):
+        self._astrbot = value
 
     def watch(self, name, path):
         self._cache[name] = (os.stat(path).st_mtime_ns, read_file(path))  # 开桥时文件必须在，不在就报缺文件
@@ -377,7 +394,8 @@ def load_cfg(a):
         cfg.watch("token", tf)
     else:
         cfg.token = ""
-    url = a.astrbot or (read_kv(os.path.join(priv, "backend.txt")).get("url") if d else "") or "http://127.0.0.1:6185"
+    cfg.directory, cfg.fixed_astrbot = d, a.astrbot
+    url = a.astrbot or (backend_state.resolve(d)["url"] if d else "") or "http://127.0.0.1:6185"
     cfg.astrbot = url.split()[0].rstrip("/")
     if not cfg.astrbot.startswith("http"):
         cfg.astrbot = "http://" + cfg.astrbot

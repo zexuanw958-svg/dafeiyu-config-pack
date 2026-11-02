@@ -240,7 +240,9 @@ function Wait-Port([int]$Port, [int]$Seconds = 120, [string]$State = 'Listen') {
 }
 
 function Stop-UnderDir([string]$Dir) {
-    Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Dir, [StringComparison]::OrdinalIgnoreCase) } |
+    # 搬上云时，搬家脚本可能就跑在 uv 目录的 Python 里：它把自己的进程号放进 DFY_KEEP_PIDS，别连它一起杀
+    $keep = @("$env:DFY_KEEP_PIDS" -split ',' | Where-Object { $_ })
+    Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Dir, [StringComparison]::OrdinalIgnoreCase) -and ($keep -notcontains "$($_.ProcessId)") } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
@@ -251,24 +253,16 @@ function Find-AstrPython([string]$Dir) {
     $roots = @()
     try { $d = (Get-Content -Raw "$env:APPDATA\com.github.raven95676.astrbot-launcher\.data-dir.json" | ConvertFrom-Json).data_dir; if ($d) { $roots += $d } } catch {}
     $roots += "$env:USERPROFILE\.astrbot_launcher"
-    $want = Get-BackendPort $Dir
-    $cands = foreach ($r in $roots) { Get-ChildItem "$r\instances" -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\venv\Scripts\python.exe" } }
-    foreach ($c in $cands) {
-        try { if ((Get-Content -Raw -Encoding UTF8 "$($c.FullName)\core\data\cmd_config.json" | ConvertFrom-Json).dashboard.port -eq $want) { return "$($c.FullName)\venv\Scripts\python.exe" } } catch {}
-    }
-    if ($cands) { return "$(@($cands)[0].FullName)\venv\Scripts\python.exe" }
+    $pin = "$(Get-Content -Raw -Encoding UTF8 "$Dir\private\backend-instance.txt" -ErrorAction SilentlyContinue)".Trim()
+    if ($pin -and (Test-Path "$pin\venv\Scripts\python.exe")) { return "$pin\venv\Scripts\python.exe" }
+    $cands = @(foreach ($r in $roots) { Get-ChildItem "$r\instances" -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\venv\Scripts\python.exe" } })
+    # 这里只借解释器运行共同探针，不能据此选数据目录。真实实例由 backend_state.py 认。
+    if ($cands) { return "$($cands[0].FullName)\venv\Scripts\python.exe" }
     return ''
 }
 
-# AstrBot 的数据目录（cmd_config.json 所在）：命令行装的在工作目录里；启动器装的是端口对得上的那个实例的 core\data。找不到返回空
 function Find-AstrDataDir([string]$Dir) {
-    if (Test-Path "$Dir\astrbot\data\cmd_config.json") { return "$Dir\astrbot\data" }
-    $py = Find-AstrPython $Dir
-    if ($py -match '\\venv\\Scripts\\python\.exe$') {
-        $inst = Split-Path (Split-Path (Split-Path $py))
-        if (Test-Path "$inst\core\data\cmd_config.json") { return "$inst\core\data" }
-    }
-    return ''
+    return (Get-BackendState $Dir).data_dir
 }
 
 # 记忆实际接成什么样（只读配置文件和本机 Ollama 的模型列表，不调后台）。插件开没开这里看不出来，要 astr_setup.py status 或工作台。
@@ -310,12 +304,34 @@ function Get-LauncherAutostart {
     return $true
 }
 
-# 后台端口：backend.txt 的 url 里写的（启动器常另给端口），没有就 6185
-function Get-BackendPort([string]$Dir) {
-    $f = "$Dir\private\backend.txt"
-    if (Test-Path $f) { $u = (Read-KeyValueFile $f)['url']; if ($u -match ':(\d+)') { return [int]$Matches[1] } }
-    return 6185
+# PowerShell、工作台、桌宠统一按 backend_state.py 的实例/进程/端口口径判断。
+function Get-BackendState([string]$Dir, [switch]$Fresh) {
+    if (-not $script:BackendStates) { $script:BackendStates = @{} }
+    $hit = $script:BackendStates[$Dir]
+    if (-not $Fresh -and $hit -and ((Get-Date) - $hit.at).TotalSeconds -lt 2) { return $hit.value }
+    $py = Find-AstrPython $Dir
+    $state = $null
+    if ($py -and (Test-Path "$PSScriptRoot\backend_state.py")) {
+        try { $state = (& $py -X utf8 "$PSScriptRoot\backend_state.py" --dir $Dir 2>$null | ConvertFrom-Json -ErrorAction Stop) } catch {}
+    }
+    if (-not $state) {
+        $port = 6185
+        try { $u = (Read-KeyValueFile "$Dir\private\backend.txt")['url']; if ($u) { $port = ([uri]$u).Port } } catch {}
+        $state = [pscustomobject]@{port=$port;ws_port=6199;url="http://127.0.0.1:$port";state='off';online=$false;data_dir='';instance='';kind=$(if(Test-Path "$Dir\start-astrbot.cmd"){'cli'}else{'launcher'});launcher_running=$false;ambiguous=$false;started=0}
+        if (Test-Path "$Dir\start-astrbot.cmd") {
+            $state.data_dir = "$Dir\astrbot\data"
+            if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) { $state.state='up' }
+        }
+    }
+    $script:BackendStates[$Dir] = @{at=(Get-Date);value=$state}
+    return $state
 }
+function Get-BackendPort([string]$Dir) { return [int](Get-BackendState $Dir).port }
+function Get-OneBotPort([string]$Dir) { return [int](Get-BackendState $Dir).ws_port }
+function Test-QQOnline([string]$Dir) { return [bool](Get-BackendState $Dir -Fresh).online }
+function Test-QQNetwork { return [Net.NetworkInformation.NetworkInterface]::GetIsNetworkAvailable() }
+
+. "$PSScriptRoot\autostart.ps1"
 
 # SnowLuma 的 OneBot 配置。全局的 config\onebot.json 什么都不连（-Token 留空）：SnowLuma 会挂上这个 Windows 用户打开的每一个 QQ，
 # 每个号第一次登录时照全局配置生成自己那份，全局不连，大号就算也在这台电脑的桌面 QQ 上登着，也接不到机器人。

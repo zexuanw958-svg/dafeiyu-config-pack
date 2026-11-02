@@ -325,6 +325,7 @@ def bot_uin():
 
 NC_LINE = re.compile(r"^(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)\s+\[(\w+)\]\s+(.*)$")
 RISK = re.compile(r"安全风险|存在风险|风险提示|冻结|异常登录|登录异常|被迫下线|下线通知|KickedOffLine|被踢|已下线|账号.{0,6}(?:异常|限制|封)")
+KICK = re.compile(r"KickedOffLine|登录已失效|登录态已失效|被迫下线|下线通知")
 
 
 def nc_time(mo, d, hh, mm, ss):
@@ -338,7 +339,7 @@ def nc_time(mo, d, hh, mm, ss):
 
 def napcat_state(c):
     """读 NapCat 这次启动以来的日志：最后一次出二维码、被扫了、登上了、最后一次收到/发出消息、有没有风控字样。"""
-    st = {"qr_at": 0, "scan_at": 0, "login_at": 0, "recv_at": 0, "send_at": 0, "risk": "", "risk_at": 0, "expired": 0}
+    st = {"qr_at": 0, "scan_at": 0, "login_at": 0, "recv_at": 0, "send_at": 0, "risk": "", "risk_at": 0, "expired": 0, "kick_at": 0, "relog_at": 0}
     if not c.get("exists"):
         return st
     cmd = ["docker", "logs", "--tail", "4000"]
@@ -351,6 +352,7 @@ def napcat_state(c):
         if not m:
             if "WebSocket反向服务" in ln and "已启动" in ln:
                 st["login_at"] = max(st["login_at"], st["scan_at"], st["qr_at"]) or time.time()
+                st["relog_at"] = st["login_at"]
             continue
         t = nc_time(*m.groups()[:5])
         msg = m.group(7)
@@ -368,8 +370,16 @@ def napcat_state(c):
             st["login_at"] = max(st["login_at"], t)
         elif "本账号数据/缓存目录" in msg or re.match(r"^[^\[\s][^|]{0,40} \| ", msg):
             st["login_at"] = max(st["login_at"], t)
+            if "本账号数据/缓存目录" in msg:
+                st["relog_at"] = t
+            elif KICK.search(msg):
+                st["kick_at"] = t
+        elif KICK.search(msg):
+            st["kick_at"] = t
         if RISK.search(msg):
             st["risk"], st["risk_at"] = redact(msg)[:160], t
+    # 最后一件事是被踢：之后没再收到过消息、没再登。发出去不算（被踢后她还会试着发）
+    st["kicked"] = bool(st["kick_at"] and st["kick_at"] >= max(st["recv_at"], st["relog_at"], st["scan_at"]))
     st["waiting"] = bool(c.get("running") and st["qr_at"] and st["qr_at"] >= st["login_at"])
     st["scanned"] = bool(st["waiting"] and st["scan_at"] >= st["qr_at"])
     return st
@@ -579,6 +589,15 @@ def meta():
 
 
 # ---------------------------------------------------------------- 子命令
+
+def cmd_qqstate():
+    """这台电脑上的掉线提醒每 3 分钟问一次：大脑开没开、小号连没连、最后一件事是不是被踢。只回这几个字段。"""
+    c = containers()
+    a, n = c["astrbot"], c["napcat"]
+    st = napcat_state(n) if n.get("running") else {}
+    out({"ok": True, "brain": bool(a.get("running")), "napcat": bool(n.get("running")), "conns": qq_conns(a.get("pid")) if a.get("running") else 0,
+         "kicked": bool(st.get("kicked")), "waiting": bool(st.get("waiting"))})
+
 
 def cmd_status():
     c = containers()
@@ -929,6 +948,8 @@ def main():
     load_secrets()
     if cmd == "status":
         return cmd_status()
+    if cmd == "qqstate":
+        return cmd_qqstate()
     if cmd == "logs":
         return cmd_logs()
     if cmd == "qr":

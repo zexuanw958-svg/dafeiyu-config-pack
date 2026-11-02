@@ -2,7 +2,7 @@
 # 存成桌面上的「大肥鱼求助信息-<月日-时分>.txt」，再生成一句「卡在：…；原因：…；代码 …」复制到剪贴板。
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File diag.ps1 -Dir <工作目录> [-NoClipboard] [-Json]
 #   -NoClipboard：不动剪贴板（测试用）。-Json：最后多打一行 DIAG_JSON {...}（工作台读这一行）。
-# 只读：不改任何设置，不开也不关任何程序。DeepSeek 余额用他自己的 key 在本机查，key 本身不写进任何地方。
+# 不开也不关任何程序；过期后台端口按共同探针校正并先备份。DeepSeek 余额用他自己的 key 在本机查，key 本身不写进任何地方。
 param([Parameter(Mandatory)][string]$Dir, [switch]$NoClipboard, [switch]$Json)
 . "$PSScriptRoot\common.ps1"
 $ErrorActionPreference = 'Continue'
@@ -64,11 +64,13 @@ $proto = "$(Get-Content -Raw "$Dir\private\protocol.txt" -ErrorAction SilentlyCo
 if ($proto -notin 'napcat', 'snowluma') { $proto = if ((Test-Path "$Dir\start-snowluma.cmd") -and -not (Test-Path "$Dir\start-napcat.cmd")) { 'snowluma' } else { 'napcat' } }
 $pname = if ($proto -eq 'snowluma') { 'SnowLuma' } else { 'NapCat' }
 $proot = "$Dir\$pname"
-$port = Get-BackendPort $Dir
+$bs = Get-BackendState $Dir
+$port = [int]$bs.port
+$wsPort = [int]$bs.ws_port
 $cli = Test-Path "$Dir\start-astrbot.cmd"
 $tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue)
 function Listening([int]$p) { [bool]($tcp | Where-Object { $_.LocalPort -eq $p -and "$($_.State)" -eq 'Listen' }) }
-$qqConn = @($tcp | Where-Object { "$($_.State)" -eq 'Established' -and $_.RemotePort -eq 6199 })
+$qqConn = @($tcp | Where-Object { "$($_.State)" -eq 'Established' -and $_.RemotePort -eq $wsPort -and $bs.online })
 $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
 $mine = @($procs | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith("$Dir\", [StringComparison]::OrdinalIgnoreCase) })
 $protoProcs = @($mine | Where-Object { $_.ExecutablePath.StartsWith("$proot\", [StringComparison]::OrdinalIgnoreCase) })
@@ -82,17 +84,19 @@ function Check([string]$State, [string]$Name, [string]$Text) { [void]$checks.Add
 function Problem([string]$Code, [string]$Where, [string]$Why) { [void]$probs.Add([pscustomobject]@{ Code = $Code; Where = $Where; Why = $Why }) }
 
 # 1 大脑
-$brainUp = Listening $port
+$brainUp = $bs.state -eq 'up'
 if ($brainUp) {
     $lp = ($tcp | Where-Object { $_.LocalPort -eq $port -and "$($_.State)" -eq 'Listen' } | Select-Object -First 1).OwningProcess
     $st = ($procs | Where-Object { $_.ProcessId -eq $lp } | Select-Object -First 1).CreationDate
     Check '正常' '大脑 AstrBot' ("后台端口 $port 在听" + $(if ($st) { "，连续跑了 $(Since $st)" }))
-} elseif ($astrProcs) {
+} elseif ($bs.state -eq 'starting') {
+    Check '要注意' '大脑 AstrBot' '实例正在起来，再等一会儿'
+} elseif ($bs.state -eq 'stuck' -or $astrProcs) {
     Check '出问题' '大脑 AstrBot' "程序开着（$($astrProcs.Count) 个进程），后台端口 $port 没在听"
     Problem 'BRAIN-STUCK' '大脑（AstrBot）卡住了' "程序开着，后台端口 $port 一直没反应"
 } else {
-    Check '出问题' '大脑 AstrBot' ("没开（后台端口 $port 没在听）" + $(if (-not $cli) { '；是启动器装的，在 AstrBot 启动器里启动' }))
-    Problem 'BRAIN-OFF' '大脑（AstrBot）没开' "后台端口 $port 没在听，工作目录里也没有它的进程"
+    Check '出问题' '大脑 AstrBot' ("没开（后台端口 $port 没在听）" + $(if (-not $cli) { '；启动器开着不等于实例开了，在启动器里点这个实例的「启动」' }))
+    Problem 'BRAIN-OFF' '大脑（AstrBot）没开' "后台端口 $port 没在听，没查到这个实例在跑的进程"
 }
 
 # 2 登 QQ 的程序
@@ -108,7 +112,7 @@ if ($proto -eq 'snowluma' -and $slLog) {
     }
     $suspect = $bad -gt $good
 }
-if ($qqConn) { Check '正常' "登 QQ 的程序 $pname" ("小号 $bot 在线（6199 上有 $($qqConn.Count) 个连接）") }
+if ($qqConn) { Check '正常' "登 QQ 的程序 $pname" ("小号 $bot 在线（$wsPort 上有 $($qqConn.Count) 个连接）") }
 elseif (-not $brainUp) { Check '出问题' "登 QQ 的程序 $pname" "大脑没开，小号也连不上（$pname 进程 $($protoProcs.Count) 个）" }
 elseif (-not $protoProcs) {
     Check '出问题' "登 QQ 的程序 $pname" "$pname 没在运行"
@@ -117,7 +121,7 @@ elseif (-not $protoProcs) {
     Check '出问题' "登 QQ 的程序 $pname" "$pname 开着但挂不上桌面 QQ（日志里有 retry exhausted），多半是 QQ 自动升级了"
     Problem 'QQ-UPGRADE' '小号没登上 QQ' "SnowLuma 挂不上桌面 QQ（auto-load retry exhausted），多半是 QQ 自动升级了，SnowLuma 还没跟上"
 } else {
-    Check '出问题' "登 QQ 的程序 $pname" "$pname 开着，但没连上大脑（6199 上没有连接），像是小号被踢下线了"
+    Check '出问题' "登 QQ 的程序 $pname" "$pname 开着，但没连上大脑（$wsPort 上没有连接），像是小号被踢下线了"
     Problem 'QQ-OFF' '小号没登上 QQ' "$pname 开着，但没连上大脑，像是小号被踢下线了"
 }
 
@@ -221,13 +225,17 @@ if ($voice -eq '4' -and -not ($lnks | Where-Object { $_ -match '(?i)breeze' })) 
 # 启动器装的大脑：开机自启在启动器「设置 → 高级 → 通用 → 开机自启动」里开（我们不替他改）
 if (-not $cli -and $astrData -match '\\core\\data$' -and -not (Get-LauncherAutostart)) { [void]$miss.Add('大脑（AstrBot 启动器没开「开机自启动」）') }
 $both = '大肥鱼-SnowLuma.lnk' -in $lnks -and '大肥鱼-NapCat.lnk' -in $lnks
-if ($both) {
-    Check '要注意' '开机自启' 'SnowLuma 和 NapCat 都设了开机自启，会抢同一个小号'
-    Problem 'AUTO-BOTH' '开机自启设重了' 'SnowLuma 和 NapCat 都会开机自启，会抢同一个小号'
-} elseif ($miss.Count) {
-    Check '要注意' '开机自启' "缺：$($miss -join '、')"
-    Problem 'AUTO-MISS' '开机后不会自己上线' "开机自启缺：$($miss -join '、')"
-} else { Check '正常' '开机自启' '都在' }
+$dups = @(Get-NapCatStartup $Dir)
+if ($dups.Count -or $both) {
+    Check '要注意' '开机自启' '有重复的登 QQ 启动项，工作台「修复」会停用旧入口并留恢复资料'
+    foreach ($dup in $dups) { Check '要注意' '重复 NapCat 入口' "$($dup.Kind)：$($dup.Name)（$($dup.Path)）" }
+    Problem 'AUTO-DUP' '开机自启设重了' '多份协议端可能抢同一个小号；只留当前工作目录这份'
+} elseif ($miss.Count -or -not (Test-QQAutostart $Dir $proto)) {
+    Check '要注意' '开机自启' "缺：$($miss -join '、')；QQ 自启需带等待大脑的逻辑，工作台点「补上」"
+    Problem 'AUTO-MISS' '开机后不会自己上线' '启动项缺失或还是直接起 QQ 的旧入口'
+} elseif (-not $cli) {
+    Check '要注意' '开机自启' 'QQ 会等大脑；启动器正常退出才记实例状态，不能保证关机时保存。实例没恢复，就在启动器点「启动」'
+} else { Check '正常' '开机自启' '入口已设，QQ 会隐藏等待网络和大脑' }
 
 # 8 表情包
 $dd = if (Test-Path "$Dir\astrbot\data") { "$Dir\astrbot\data" } else { '' }
@@ -333,9 +341,9 @@ $wbv = Select-String -Path "$PSScriptRoot\workbench\server.py" -Pattern '^VERSIO
 if ($wbv) { W "工作台：$($wbv.Matches[0].Groups[1].Value)" }
 
 Sec '端口'
-$pp = @(@($port, "大脑后台"), @(6199, "大脑等 QQ 程序来连"), @(8137, "Breeze 语音"), @(11434, "Ollama 记忆"), @(5099, "SnowLuma 后台"), @(6099, "NapCat 后台"))
+$pp = @(@($port, "大脑后台"), @($wsPort, "大脑等 QQ 程序来连"), @(8137, "Breeze 语音"), @(11434, "Ollama 记忆"), @(5099, "SnowLuma 后台"), @(6099, "NapCat 后台"))
 foreach ($x in $pp) { W ("{0,-6}{1}：{2}" -f $x[0], $x[1], $(if (Listening $x[0]) { '在听' } else { '没在听' })) }
-W "6199 上的连接：$($qqConn.Count) 个"
+W "$wsPort 上的连接：$($qqConn.Count) 个"
 
 Sec '工作目录里在跑的程序'
 if ($mine) { foreach ($p in ($mine | Sort-Object CreationDate)) { W ("{0}  进程 {1}  {2} 起  {3}" -f $p.Name, $p.ProcessId, $(if ($p.CreationDate) { $p.CreationDate.ToString('MM-dd HH:mm') }), $p.ExecutablePath.Substring($Dir.Length + 1)) } }
