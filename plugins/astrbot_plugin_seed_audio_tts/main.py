@@ -7,7 +7,7 @@
 
 整条语音（seed_audio_whole_reply = true，默认）：AstrBot 自带的语音会先把回复拆段、一段一段排队合成，
 每段都要等十几秒，几段声音也不太一样。开了整条语音后由本插件掷骰子（seed_audio_reply_probability），
-掷中就把整条回复一次合成一条语音，没掷中照常发分段文字。此时要把 AstrBot 的语音总开关
+掷中时会发送整条语音并保留原文字作为兼容保底，没掷中照常发分段文字。此时要把 AstrBot 的语音总开关
 （provider_tts_settings.enable）关掉，不然 AstrBot 还会另外按段转语音。
 """
 
@@ -256,6 +256,10 @@ class SeedAudioTTSPlugin(Star):
                 if not placed:
                     new_chain.append(Record(file=path, url=path, text=full))
                     placed = True
+                # Some QQ clients may render a Record segment as blank or
+                # unsupported. Keep the original text so a successful TTS
+                # conversion never makes the reply unreadable.
+                new_chain.append(c)
                 continue
             new_chain.append(c)
         result.chain = new_chain
