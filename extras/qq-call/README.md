@@ -105,6 +105,36 @@ copy config.example.json config.json
 
 只有来电窗口文本里包含白名单名字才会点“接听”。`allowed_callers` 为空时程序直接退出，不会接任何来电。
 
+### 可选：主动拨号 POC
+
+QQ 没有主动拨号 API，只能用 UI 自动化点聊天窗口右上角的电话图标。
+
+先在 `config.json` 填：
+
+```json
+"outgoing_call": {
+  "contact_title": "对方的 QQ 备注",
+  "button_offset_from_right": 285,
+  "button_offset_y": 84,
+  "call_window_title": "语音通话",
+  "timeout_seconds": 10
+}
+```
+
+先 dry-run，只打印坐标不点击：
+
+```powershell
+.\.venv\Scripts\python.exe place_call.py --config config.json
+```
+
+确认坐标无误、对方同意接听后：
+
+```powershell
+.\.venv\Scripts\python.exe place_call.py --config config.json --call
+```
+
+它会临时把聊天窗口提到最前，点完电话后恢复原来的前台窗口，不会让 QQ 一直置顶。坐标是相对窗口右上角算的；QQ 更新或缩放变化时可能需要微调。**只对明确同意的人使用，不要自动群呼或骚扰。**
+
 ## 三种 TTS
 
 ### 1. edge_tts（默认，最快）

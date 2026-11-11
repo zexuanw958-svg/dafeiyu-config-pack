@@ -47,5 +47,12 @@
     "button_name": "接听",
     "poll_seconds": 0.3
   },
+  "outgoing_call": {
+    "contact_title": "",
+    "button_offset_from_right": 285,
+    "button_offset_y": 84,
+    "call_window_title": "语音通话",
+    "timeout_seconds": 10
+  },
   "ffmpeg": "ffmpeg"
 }
