@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import ctypes
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event.filter import EventMessageType
 from astrbot.api.star import Context, Star
 
 CREATE_NO_WINDOW = 0x08000000
@@ -119,3 +121,20 @@ class QQCallPlugin(Star):
         if "CALL_WINDOW_OPEN" in output:
             return "正在拨打，等电话响。"
         return "拨号没成功：" + (output[-500:] or "没有返回")
+
+    @filter.event_message_type(EventMessageType.ALL, priority=100)
+    async def on_owner_call_request(self, event: AstrMessageEvent):
+        """不依赖模型：主人明确说“给我打电话”时直接触发一次。"""
+        owner = self._owner()
+        if not owner or str(event.get_sender_id()) != owner:
+            return
+        text = (getattr(event, "message_str", "") or "").strip()
+        if not text:
+            return
+        if re.search(r"(不要|别|不用|先不).{0,6}(打|拨).{0,3}电话", text):
+            return
+        if not re.search(r"(给我|帮我|替我).{0,3}(打|拨).{0,3}电话|打给我|call me", text, re.I):
+            return
+        result = await self.call_owner(event)
+        yield event.plain_result(result)
+        event.stop_event()

@@ -94,7 +94,10 @@ def main() -> None:
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
                               win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
-        win32gui.SetForegroundWindow(hwnd)
+        try:
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
         time.sleep(0.4)
         click(x, y)
         deadline = time.time() + float(conf.get("timeout_seconds") or 10)
