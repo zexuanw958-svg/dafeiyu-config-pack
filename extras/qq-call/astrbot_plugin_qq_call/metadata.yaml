@@ -1,0 +1,8 @@
+name: astrbot_plugin_qq_call
+display_name: QQ 主动拨号
+desc: 主人明确要求时，调用 extras/qq-call 的 place_call.py 发起 QQ 原生语音通话
+help: 只允许配置的 owner_qq 触发；必须先配置 qq_call_dir 和联系人标题
+version: 0.1.0
+author: qq-call
+repo: https://github.com/zexuanw958-svg/dafeiyu-config-pack
+astrbot_version: ">=4.11.0"

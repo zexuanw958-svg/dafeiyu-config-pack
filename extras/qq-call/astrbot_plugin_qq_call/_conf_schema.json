@@ -1,0 +1,42 @@
+{
+  "owner_qq": {
+    "type": "string",
+    "description": "唯一允许触发拨号的 QQ 号；必须填，其他人说打电话不会执行",
+    "default": ""
+  },
+  "qq_call_dir": {
+    "type": "string",
+    "description": "extras/qq-call 的绝对路径",
+    "default": ""
+  },
+  "python_exe": {
+    "type": "string",
+    "description": "运行 qq-call 的 Python，建议填 .venv\\Scripts\\python.exe",
+    "default": "python"
+  },
+  "config_file": {
+    "type": "string",
+    "description": "qq-call 的 config.json 路径（相对 qq_call_dir）",
+    "default": "config.json"
+  },
+  "start_agent": {
+    "type": "bool",
+    "description": "拨号前自动启动通话 agent",
+    "default": true
+  },
+  "agent_script": {
+    "type": "string",
+    "description": "通话 agent 脚本",
+    "default": "call_agent.py"
+  },
+  "agent_args": {
+    "type": "string",
+    "description": "传给 agent 的额外参数；call_agent.py 默认用 --config config.json",
+    "default": "--config config.json"
+  },
+  "agent_pid_file": {
+    "type": "string",
+    "description": "防止重复启动的 PID 文件",
+    "default": "call_agent.pid"
+  }
+}
