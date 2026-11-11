@@ -1,0 +1,51 @@
+{
+  "llm": {
+    "base_url": "https://api.deepseek.com/v1",
+    "api_key": "YOUR_API_KEY",
+    "model": "deepseek-chat",
+    "system_prompt": "你是一个简洁、自然的语音助手。用中文回答，一次 1-2 句话，不要用列表、标题或表情符号。",
+    "max_tokens": 160
+  },
+  "tts": {
+    "provider": "edge_tts",
+    "breeze_online": {
+      "base_url": "https://api.breeze.blue/v1",
+      "api_key": "",
+      "voice_id": "",
+      "model": "breeze-tts-2",
+      "output_format": "mp3_24000_128",
+      "proxy": ""
+    },
+    "breeze_local": {
+      "endpoint": "http://127.0.0.1:8137/api/tts",
+      "voice": "",
+      "timeout": 120
+    },
+    "edge_tts": {
+      "voice": "zh-CN-XiaoxiaoNeural",
+      "rate": "+0%",
+      "volume": "+0%"
+    }
+  },
+  "asr": {
+    "sherpa_exe": "",
+    "model": "",
+    "tokens": "",
+    "language": "zh",
+    "threads": 4
+  },
+  "audio": {
+    "virtual_speaker": "CABLE Input (VB-Audio Virtual Cable)",
+    "loopback_speaker": "",
+    "sample_rate": 48000,
+    "vad_silence_ms": 700,
+    "max_utterance_seconds": 20
+  },
+  "auto_answer": {
+    "enabled": false,
+    "allowed_callers": [],
+    "button_name": "接听",
+    "poll_seconds": 0.3
+  },
+  "ffmpeg": "ffmpeg"
+}
